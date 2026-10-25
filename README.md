@@ -94,19 +94,6 @@
 - 下载图片时拒绝直接指向内网 IP 的地址，并按文件内容判断真实格式，不信任扩展名。
 - 管理页里的缩略图由浏览器直接加载。外链显示「无法预览」时，常见原因是防盗链、跨域限制或只有服务器能访问的内网地址，不代表机器人发图会失败。
 
-## 🛠️ 从源码构建
-
-需要 Node.js 18 及以上：
-
-```bash
-npm install
-npm run typecheck
-npm test
-npm run build
-```
-
-开发规范见 [`AGENTS.md`](AGENTS.md)。
-
 ## 📄 许可
 
 本项目基于 [MIT License](LICENSE) 开源。
