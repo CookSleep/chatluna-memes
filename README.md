@@ -1,134 +1,102 @@
-# koishi-plugin-memesluna
+<div align="center">
 
-MemesLuna 是 Koishi 的表情图片路由与管理插件。它把本地表情合集、外部随机图片 API（外部图源）与 ChatLuna 提示词变量连在一起，让机器人按固定 HTTP 路由发图。
+<img src="docs/icon.svg" alt="ChatLuna Memes" width="128" height="128">
 
-[![npm](https://img.shields.io/npm/v/koishi-plugin-memesluna.svg)](https://www.npmjs.com/package/koishi-plugin-memesluna)
-[![license](https://img.shields.io/npm/l/koishi-plugin-memesluna.svg)](./LICENSE)
+# ChatLuna Memes
 
-## 功能概览
+[![License](https://img.shields.io/badge/license-MIT-10b981?style=flat-square)](LICENSE)
+[![Koishi](https://img.shields.io/badge/Koishi-4.18-5546a3?style=flat-square)](https://koishi.chat/)
+[![ChatLuna](https://img.shields.io/badge/ChatLuna-1.3-8b5cf6?style=flat-square)](https://github.com/ChatLunaLab/chatluna)
 
-- **表情包合集**：本地图 / 外链、描述、移动、删除、批量上传
-- **外部图源**：把外部随机图片 API 挂到自定义路由下，访问时 302 跳转
-- **Console 管理页**：合集、图片、外部图源、暂缓区、语义标签与检索别名，适配深色模式和移动端
-- **ChatLuna 注入**：`{endpoint}` 路由清单 + `{memesluna}` 使用说明
-- **关键词搜索**：`/memesluna?q=关键词`（aliases / tags / 文件名打分，非向量检索）
-- **AI 标注**：用 ChatLuna 视觉模型生成 `tags` 与 `aliases`
-- **暂缓区**：过滤或自动收集的候选图，人工复核后归档
-- **高频自动收集**：群聊高频图片进入暂缓区（可配窗口、阈值、大小与每日上限）
+**让 ChatLuna 会发表情包的 Koishi 插件**
 
-## 安装
+把本地表情包和外部随机图 API 整理成一组随机图地址，注入 ChatLuna 的预设，模型就能按语境挑一张发出去。<br>
+用 AI 为每张图生成标签和别名，模型可以按关键词找图；群里反复出现的图会被收进暂缓区，确认后一键归档。<br>
+所有管理和设置都在 Koishi 控制台里完成，保存后立即生效。
 
-```bash
-npm i koishi-plugin-memesluna
-```
+</div>
 
-依赖服务：`database`（必需）；`server` 提供 HTTP 路由，`chatluna` 提供变量注入与 AI 标注。Console 页面需要 `@koishijs/plugin-console`。
+---
 
-聊天命令 `memesluna.stole`、`memesluna.tagall`、`memesluna.untagall` 需要权限等级 5。
+## ✨ 功能
 
-管理操作还需要启用 Koishi `auth` 插件，并登录权限等级至少为 1 的 Console 账号。没有有效登录凭据时，管理 HTTP 接口和 Console RPC 会拒绝请求；公开图片、合集搜索与外部图源跳转仍可匿名访问。
+### 🗂️ 表情包与外部图源
+- **表情包**：上传本地图片或导入外链，每个表情包有自己的随机图地址，如 `/chatluna-memes/猫猫`。
+- **外部图源**：把随机图 API 挂到同一个前缀下，访问时 302 跳转过去；添加前可以先试一下能不能取到图。
+- **管理**：多选后批量移动、删除和标注，标签与别名跟着图片一起移动；重复上传会复用已有的图片和标注。
 
-自定义客户端调用 `/memesluna/api/admin/*` 时，使用 Console 登录得到的凭据发送 `Authorization: Bearer <token>`。不要把凭据放在 URL 中。内置 Console 已自动处理上传和暂缓区图片预览的鉴权。
+### 💬 ChatLuna 注入
+- **两个变量**：`{chatluna_memes}` 是完整的使用说明，`{chatluna_memes_list}` 只有随机图清单，按需选一个填进预设。
+- **提示词模板**：在「配置」里修改使用说明的模板，在「预览」里查看渲染后的完整文本。
+- **自动更新**：增删表情包或外部图源后，变量内容随之更新，空表情包不会列出。
 
-## 配置
+### 🏷️ AI 标注与搜索
+- **自动标注**：用 ChatLuna 中的模型为上传、偷图和归档的图片生成标签与别名，也可以在编辑弹窗里手动识别。
+- **按关键词找图**：随机图地址后加 `?q=关键词`，按别名、标签和文件名找最匹配的一张；不带表情包名时在全部表情包里搜索。
+- **用量可控**：可以设置并发数、重试、超时和每日请求上限，在「预览」里查看任务进度并随时取消。
 
-所有设置都在 Console 的 MemesLuna 页面第一个标签「配置」里修改，保存后立即生效，不需要重启 Koishi。Koishi 插件配置页不再显示配置项。
+### 📥 自动收集与暂缓区
+- **高频收集**：开启后，同一张图在群里一段时间内出现若干次，就会被收进暂缓区。体积范围和每群每日上限都可以调整。
+- **相似分组**：按感知哈希把相似的图片归为一组，方便整组归档或删除。
+- **过期清理**：暂缓区的图片超过保留天数后自动删除。
 
-| 分区 | 内容 |
-|------|------|
-| 访问地址 | 对外地址（留空则用 `server.selfUrl`）、路由前缀（默认 `/memesluna`） |
-| ChatLuna 注入 | 是否注入变量、`{memesluna}` 提示词模板 |
-| 自动收集 | 开关、统计窗口与出现次数、图片体积范围、每群每日上限 |
-| 暂缓区 | 相似分组阈值、自动清理天数 |
-| AI 标注 | 标注模型、是否自动标注新图片、每日请求上限、标注提示词，以及并发、请求间隔、尝试次数、超时 |
+---
 
-设置保存在 `data/memesluna/.settings.json`。从旧版本升级时，首次启动会把 `koishi.yml` 里原有的配置迁移过来，之后只读这个文件。以下旧配置项已移除：`variableRefreshIntervalMs`（路由或设置变化时会立即刷新 ChatLuna 变量）、`aiBatchDelay`（限流时降低并发即可）、`aiWarnThreshold`（用量达到 80% 时在日志提醒一次）。`aiRequestTimeoutMs` 改为以秒为单位；`aiBackoffBase` 改为「重试等待」，以秒为单位，每次重试翻倍，最多等 30 秒。
+## ✅ 前置条件
 
-本地合集固定在 Koishi 数据目录 `data/memesluna`。合集名与外部图源名共用路由命名空间，不能重名。
+- Koishi 4.18 及以上，并启用数据库插件。
+- 需要发图和管理页时启用 `server` 和 `console`（Koishi 默认已启用）。
+- ChatLuna 注入和 AI 标注需要 [ChatLuna](https://github.com/ChatLunaLab/chatluna)。AI 标注要选支持识图的模型。
 
-## Console 用法
+## 🚀 使用
 
-启用插件后，控制台会出现 **MemesLuna** 页面：
+1. 启用插件后，在控制台侧栏打开 **ChatLuna Memes**。
+2. 在「表情包」中新建表情包，上传图片；需要的话在「外部图源」中添加随机图 API。
+3. 在「配置」中开启 ChatLuna 注入，把 `{chatluna_memes}` 填入 ChatLuna 预设中合适的位置（例如介绍可用能力的部分）。**变量只有填进预设才会生效**。
+4. 机器人对外的地址和 Koishi 的 `selfUrl` 不同时（例如经过反向代理），在「配置」中填写对外地址，否则模型拿到的地址无法访问。
 
-1. 在「配置」调整访问地址、ChatLuna 注入、自动收集和 AI 标注  
-2. 在「表情包」新建合集，上传本地图片或导入外链  
-3. 在「外部图源」添加随机图片 API，可以先点「试一下」确认能取到图  
-4. 在「暂缓区」处理自动收集或被拦下的图片：直接归档到表情包，或者删除；相似图片会自动标出并可按组处理  
-5. 在「预览」查看注入给 ChatLuna 的路由、提示词和 AI 标注状态  
+### 随机图地址
 
-管理页里的缩略图由浏览器直接加载。外链或外部图源显示「无法预览」时，常见原因是防盗链、跨域限制、HTTPS 页面里的 HTTP 图片，或者只有服务器能访问的内网地址（例如 Docker 容器名）。这不代表机器人发图一定失败。
+| 地址 | 作用 |
+| --- | --- |
+| `/chatluna-memes/表情包名` | 从表情包中随机返回一张；外部图源则 302 跳转 |
+| `/chatluna-memes/表情包名?q=关键词` | 在该表情包里按关键词找图，找不到时随机返回 |
+| `/chatluna-memes?q=关键词` | 在全部表情包里按关键词找图 |
+| `/chatluna-memes/表情包名/文件名` | 返回指定的本地图片 |
 
-图片可维护：
+前缀可以在「配置」中修改，修改后已经发出去的旧地址会失效。
 
-- `tags`：语义标签（情绪、动作、场景等）
-- `aliases`：自然语言检索别名（用于 `?q=`）
+### 命令
 
-合集详情按页加载，每页同时返回图片和标注。批量追加标注由服务端合并已有数据，部分失败时会显示成功/失败数量，并保留失败项供重试。
+| 命令 | 作用 |
+| --- | --- |
+| `chatluna.memes.list` | 列出可用的表情包和外部图源 |
+| `chatluna.memes.stole <表情包名>` | 引用带图片的消息后发送，把图片存进表情包；别名 `偷了` |
+| `chatluna.memes.tagall [-f]` | 为还没有标注的图片排队标注，`-f` 重新标注全部图片 |
+| `chatluna.memes.untagall [-c <表情包名>]` | 清空全部或指定表情包的标注 |
 
-重复上传同一合集中已有的图片会复用原记录、文件名和标注。移动图片保留原文件名，发生重名时添加数字后缀；文件操作或数据库操作失败时会撤销未完成的操作。
+除 `list` 外的命令需要 5 级权限。
 
-单张图片最大 50MB。HTTP 单次上传最多 32 个文件、总计不超过 100MB；内置 Console 将选择的文件逐张上传，单次选择最多 500 张。解析失败及上传失败都会清理该请求的临时文件。
+## 🔁 从 memesluna 迁移
 
-## 路由说明
+本项目由 [memesluna](https://github.com/lumia1998/koishi-plugin-memesluna) 改名独立而来。首次启动时会自动迁移原插件的数据，只执行一次：
 
-默认前缀 `/memesluna`：
+- **设置**：读取原插件在管理页保存的设置，没有则读取 koishi.yml 中原插件的配置。原来的默认前缀 `/memesluna` 改为 `/chatluna-memes`，自定义的前缀保留。
+- **数据**：复制 `data/memesluna` 中的图片，以及 `memesluna_*` 数据表中的表情包、外部图源和暂缓区记录。
+- **原数据**：不会删除，确认无误后可以手动删除 `data/memesluna` 和 `memesluna_*` 数据表。
+- **停用原插件**：迁移不需要原插件在运行。请先停用原插件再启用本插件，两者同时启用时路由会冲突。
+- **预设**：`{memesluna}` 改名为 `{chatluna_memes}`，`{endpoint}` 改名为 `{chatluna_memes_list}`，需要在预设中一并替换。
 
-| 路径 | 作用 |
-|------|------|
-| `/memesluna/` | 跳转 Console |
-| `/memesluna/:name` | 合集随机图，或外部图源 302 |
-| `/memesluna?q=关键词` | 跨合集关键词搜索 |
-| `/memesluna/合集名?q=关键词` | 合集内搜索（无匹配时退回随机） |
-| `/memesluna/:collection/:filename` | 本地图直链 |
+## 🔒 数据与安全
 
-### 搜索评分（摘要）
+- 图片保存在 `data/chatluna-memes`，设置保存在其中的 `.settings.json`，记录保存在 `chatluna_memes_*` 数据表中。
+- 管理页的所有操作都需要控制台管理员权限。
+- 下载图片时拒绝直接指向内网 IP 的地址，并按文件内容判断真实格式，不信任扩展名。
+- 管理页里的缩略图由浏览器直接加载。外链显示「无法预览」时，常见原因是防盗链、跨域限制或只有服务器能访问的内网地址，不代表机器人发图会失败。
 
-- 短语命中 aliases / tags / 文件名：`+12` / `+8` / `+4`
-- 分词命中 aliases / tags / 文件名：`+6` / `+6` / `+2`
-- 多词命中额外加分；总分 ≥ `6` 才进入候选
+## 🛠️ 从源码构建
 
-## ChatLuna
-
-在「配置」开启 ChatLuna 注入后提供：
-
-- `{endpoint}`：可用合集与外部图源清单  
-- `{memesluna}`：由提示词模板渲染的使用说明  
-
-模板占位符：`{endpoint}`、`{base_url}`、`{backend_path}`。
-
-## AI 标注
-
-在「配置」选择 ChatLuna 标注模型后，上传 / 偷图 / 归档本地图会异步生成 `tags` 与 `aliases`；关闭「自动标注」则只在手动识别或执行 `tagall` 时标注。
-
-```text
-memesluna.tagall
-memesluna.tagall -f
-memesluna.untagall
-memesluna.untagall -c 合集名
-```
-
-手动标注、上传后标注、归档和 `tagall` 使用同一任务队列及请求并发上限。Console 的「预览」页可以查看任务状态、每日用量并取消任务；取消会保留已完成的标注。
-
-每日请求上限按实际请求次数计数，失败请求和重试也占用配额。请求次数、重试、成功与失败结果保存在 `data/memesluna/.ai-usage.json`，重启后继续使用，按 UTC 日期重置。请求超时默认 60 秒；底层模型应支持取消信号，超时请求实际结束前仍占用并发槽位，后续等待也有超时限制。
-
-## 自动收集与暂缓区
-
-开启自动收集后监听群聊图片；窗口内出现次数达到阈值则进入暂缓区。该选项默认关闭，关闭时暂缓区只会收到上传时超过 10 MB 的图片。
-
-图片体积下限默认 4 KB。QQ 表情大多在 5~40 KB，设得太高会让大部分表情直接被忽略。
-
-相似图片分组使用精确汉明距离候选检索，每个组成员都需要与该组代表图达到阈值。管理页显示成员与代表图的最低相似度；不会因为暂缓区超过 200 张而切换成会漏检的前缀分桶规则。
-
-暂缓区图片不参与随机路由，需在 Console 归档到合集后才生效。
-
-## 命令
-
-```text
-memesluna.list          # 列出可用合集与外部图源
-memesluna.stole <合集>  # 引用图片写入合集（需先创建合集）
-```
-
-## 开发
+需要 Node.js 18 及以上：
 
 ```bash
 npm install
@@ -137,10 +105,15 @@ npm test
 npm run build
 ```
 
-新增回归测试覆盖并发上传、移动和删除失败回滚、启动文件名冲突、搜索规模边界、相似分组、管理鉴权、上传清理、前端分页和连续标注编辑，以及 AI 配额持久化与任务取消。
+开发规范见 [`AGENTS.md`](AGENTS.md)。
 
-发布物：`lib/**/*.js`、`lib/**/*.d.ts`、`dist`（Console 前端）。
+## 📄 许可
 
-## License
+本项目基于 [MIT License](LICENSE) 开源。
 
-MIT
+## 🙏 致谢
+
+- [memesluna](https://github.com/lumia1998/koishi-plugin-memesluna)（lumia1998）：本项目的前身，表情包路由、外部图源、AI 标注和自动收集都源自它。
+- [Koishi](https://koishi.chat/)：聊天机器人框架。
+- [ChatLuna](https://github.com/ChatLunaLab/chatluna)：提供变量注入和标注用的模型。
+- [Photon](https://github.com/silvia-odwyer/photon)：计算感知哈希，用于相似图片检测。
