@@ -1,6 +1,6 @@
 <template>
-  <div class="loading-container">
-    <div class="spinner"></div>
+  <div class="ml-loading">
+    <div class="ml-spinner"></div>
     <p>{{ message }}</p>
   </div>
 </template>
@@ -13,7 +13,7 @@ export default defineComponent({
   props: {
     message: {
       type: String,
-      default: '正在同步数据...',
+      default: '加载中…',
     },
   },
 })

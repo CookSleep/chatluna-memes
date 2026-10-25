@@ -98,10 +98,10 @@ export const Config: Schema<Config> = Schema.intersect([
       .default(3)
       .description('同一张图在统计窗口内出现几次后放入暂缓区'),
     minEmojiSize: Schema.number()
-      .min(1)
+      .min(0)
       .max(1024)
-      .default(50)
-      .description('自动暂存的图片最小体积（KB），低于此大小的图片会被忽略'),
+      .default(4)
+      .description('自动暂存的图片最小体积（KB），低于此大小的图片会被忽略。QQ 表情多在 5~40 KB，设得太高会漏掉大部分表情'),
     maxEmojiSize: Schema.number()
       .min(1)
       .max(100)

@@ -125,7 +125,7 @@ export function applyAutoCollect(ctx: Context, config: Config) {
   const windowMinutes = Math.max(1, config.emojiFrequencyWindowMinutes || 10)
   const windowMs = windowMinutes * 60 * 1000
   const threshold = Math.max(1, config.emojiFrequencyThreshold || 3)
-  const minBytes = Math.max(0, config.minEmojiSize || 50) * 1024
+  const minBytes = Math.max(0, config.minEmojiSize ?? 4) * 1024
   const maxBytes = Math.max(1, config.maxEmojiSize || 15) * 1024 * 1024
   const dailyLimit = Math.max(1, config.groupAutoCollectLimit || 300)
 
@@ -154,12 +154,11 @@ export function applyAutoCollect(ctx: Context, config: Config) {
         const hash = hashImageBuffer(buffer)
         const frequency = trackImageFrequency(hash, groupId, windowMs, autoCollectFrequencyTracker)
         if (frequency.alreadyStaged || frequency.count < threshold) continue
+        // 在任何 await 之前标记，避免并发消息重复计入每日上限。
+        markImageFrequencyStaged(hash, groupId, autoCollectFrequencyTracker)
 
         const duplicate = await service.getDuplicateImageByHash(hash, { includeStaged: true, includeImages: true })
-        if (duplicate) {
-          markImageFrequencyStaged(hash, groupId, autoCollectFrequencyTracker)
-          continue
-        }
+        if (duplicate) continue
 
         if (hitDailyAutoCollectLimit(groupId, dailyLimit, autoCollectDailyLimits)) {
           ctx.logger('memesluna').debug(`Auto collect daily limit reached for group ${groupId}`)
@@ -172,13 +171,15 @@ export function applyAutoCollect(ctx: Context, config: Config) {
           `auto:${groupId}`,
           `${windowMinutes} 分钟内出现 ${frequency.count} 次`
         )
-        markImageFrequencyStaged(hash, groupId, autoCollectFrequencyTracker)
       } catch (error) {
-        ctx.logger('memesluna').debug(`Auto collect image skipped: ${(error as Error).message}`)
+        const message = (error as Error).message
+        // 重复图片属于正常情况；下载、写入等失败需要能在日志里看到。
+        if (message.startsWith('Duplicate image')) continue
+        ctx.logger('memesluna').warn(`Auto collect image failed: ${message}`)
       }
     }
   })
 
   ctx.setInterval(() => cleanupAutoCollectFrequency(windowMs, autoCollectFrequencyTracker), Math.max(60 * 1000, windowMs))
-  ctx.logger('memesluna').info(`Auto collect started: ${windowMinutes}m/${threshold} times, ${config.minEmojiSize || 50}KB-${config.maxEmojiSize || 15}MB, ${dailyLimit}/day/group`)
+  ctx.logger('memesluna').info(`Auto collect started: ${windowMinutes}m/${threshold} times, ${config.minEmojiSize ?? 4}KB-${config.maxEmojiSize || 15}MB, ${dailyLimit}/day/group`)
 }

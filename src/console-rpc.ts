@@ -60,11 +60,29 @@ export interface ConsoleSimilarStagedImagesResult {
   message: string
 }
 
+export interface ConsoleAutoCollectSettings {
+  enabled: boolean
+  windowMinutes: number
+  threshold: number
+  minSizeKB: number
+  maxSizeMB: number
+  dailyLimit: number
+}
+
+/** 管理页展示用的配置摘要，只读。 */
+export interface ConsoleSettingsSummary {
+  injectVariables: boolean
+  annotatorReady: boolean
+  stagingRetentionDays: number
+  autoCollect: ConsoleAutoCollectSettings
+}
+
 export interface ConsoleState {
   backendPath: string
   endpoints: ConsoleEndpointInfo[]
   collections: ConsoleCollectionInfo[]
   stagedImages: ConsoleStagedImageInfo[]
+  settings?: ConsoleSettingsSummary
 }
 
 export interface AddStagedImagePayload {
@@ -130,6 +148,7 @@ export interface MemesLunaConsoleEvents {
   'memesluna/createCollection'(name: string): Promise<boolean>
   'memesluna/deleteCollection'(name: string): Promise<boolean>
   'memesluna/setCollectionDescription'(name: string, description: string): Promise<boolean>
+  'memesluna/renameCollection'(name: string, newName: string): Promise<boolean>
   'memesluna/deleteLocalImage'(collectionName: string, filename: string): Promise<boolean>
   'memesluna/moveLocalImage'(sourceCollection: string, targetCollection: string, filename: string): Promise<string | null>
   'memesluna/addLinks'(collectionName: string, linksText: string): Promise<number>
@@ -144,7 +163,7 @@ export interface MemesLunaConsoleEvents {
   'memesluna/promoteStagedImage'(id: string, collectionName: string): Promise<string | null>
   'memesluna/getBaseUrl'(): Promise<string>
   'memesluna/deleteAllStagedImages'(): Promise<number>
-  'memesluna/annotateImage'(collectionName: string, filename: string): Promise<ImageMetadataResult>
+  'memesluna/annotateImage'(collectionName: string, filename: string, options?: { preview?: boolean }): Promise<ImageMetadataResult>
   'memesluna/updateImageMetadata'(payload: ImageMetadataPayload): Promise<ImageMetadataResult>
   'memesluna/getImageMetadata'(collectionName: string, filename: string): Promise<ImageMetadataResult>
   'memesluna/getCollectionResources'(collectionName: string, query?: CollectionPageQuery): Promise<CollectionResourcePage>

@@ -16,6 +16,7 @@ afterEach(async () => { await Promise.all(roots.splice(0).map((root) => fs.rm(ro
 function matches(row: any, query: any): boolean {
   return Object.entries(query).every(([key, value]: [string, any]) => {
     if (key === '$or') return value.some((part: any) => matches(row, part))
+    if (key === '$and') return value.every((part: any) => matches(row, part))
     if (Array.isArray(value)) return value.includes(row[key])
     if (value?.$regex) return value.$regex.test(row[key] || '')
     return row[key] === value
@@ -131,6 +132,24 @@ describe('图片存储一致性', () => {
     expect(tables.memesluna_images[0].collection).toBe('source')
   })
 
+  it('合集改名同步目录、外链清单和数据库，失败时回滚', async () => {
+    const { service, root, database, tables } = await fixture()
+    await service.addLocalImageBuffer('source', Buffer.from('source'), 'a.png')
+    await fs.writeFile(path.join(root, 'source/source.txt'), 'https://example.com/a.png')
+    await expect(service.renameCollection('source', 'target')).rejects.toThrow('已经有叫「target」的表情包了')
+
+    database.set.mockRejectedValueOnce(new Error('database unavailable'))
+    await expect(service.renameCollection('source', 'renamed')).rejects.toThrow('database unavailable')
+    expect(await fs.readFile(path.join(root, 'source/source.txt'), 'utf8')).toBe('https://example.com/a.png')
+    expect(tables.memesluna_images[0].collection).toBe('source')
+
+    expect(await service.renameCollection('source', 'renamed')).toBe(true)
+    expect(await fs.readFile(path.join(root, 'renamed/a.png'), 'utf8')).toBe('source')
+    expect(await fs.readFile(path.join(root, 'renamed/renamed.txt'), 'utf8')).toBe('https://example.com/a.png')
+    expect(tables.memesluna_images[0].collection).toBe('renamed')
+    await expect(fs.stat(path.join(root, 'source'))).rejects.toThrow()
+  })
+
   it('删除数据库失败时恢复原文件', async () => {
     const { service, root, database } = await fixture()
     await service.addLocalImageBuffer('source', Buffer.from('source'), 'a.png')
@@ -168,5 +187,11 @@ describe('图片存储一致性', () => {
     expect(await service.getCollectionResourcePage('source', { type: 'local', offset: 1, limit: 1 })).toMatchObject({ total: 2, items: [{ filename: 'b.png', tags: ['标签'] }] })
     expect(await service.getCollectionResourcePage('source', { search: 'a.' })).toMatchObject({ total: 1, items: [{ filename: 'a.png' }] })
     expect(await service.getCollectionResourcePage('source', { selected: [] })).toMatchObject({ total: 0, items: [] })
+    expect(await service.getCollectionResourcePage('source', { selected: ['b.png', 'https://example.com/c.png'] })).toMatchObject({
+      total: 2, items: [{ filename: 'b.png' }, { type: 'external', value: 'https://example.com/c.png' }],
+    })
+    expect(await service.getCollectionResourcePage('source', { selected: ['a.png', 'https://example.com/c.png'], search: 'example' })).toMatchObject({
+      total: 1, items: [{ value: 'https://example.com/c.png' }],
+    })
   })
 })

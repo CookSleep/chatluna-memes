@@ -1,6 +1,6 @@
 # koishi-plugin-memesluna
 
-MemesLuna 是 Koishi 的表情图片路由与管理插件。它把本地表情合集、外部图片端点与 ChatLuna 提示词变量连在一起，让机器人按固定 HTTP 路由发图。
+MemesLuna 是 Koishi 的表情图片路由与管理插件。它把本地表情合集、外部随机图片 API（外部图源）与 ChatLuna 提示词变量连在一起，让机器人按固定 HTTP 路由发图。
 
 [![npm](https://img.shields.io/npm/v/koishi-plugin-memesluna.svg)](https://www.npmjs.com/package/koishi-plugin-memesluna)
 [![license](https://img.shields.io/npm/l/koishi-plugin-memesluna.svg)](./LICENSE)
@@ -8,8 +8,8 @@ MemesLuna 是 Koishi 的表情图片路由与管理插件。它把本地表情�
 ## 功能概览
 
 - **表情包合集**：本地图 / 外链、描述、移动、删除、批量上传
-- **端点转发**：自定义路由 302 到外部图片 API
-- **Console 管理页**：合集、图片、端点、暂缓区、语义标签与检索别名
+- **外部图源**：把外部随机图片 API 挂到自定义路由下，访问时 302 跳转
+- **Console 管理页**：合集、图片、外部图源、暂缓区、语义标签与检索别名，适配深色模式和移动端
 - **ChatLuna 注入**：`{endpoint}` 路由清单 + `{memesluna}` 使用说明
 - **关键词搜索**：`/memesluna?q=关键词`（aliases / tags / 文件名打分，非向量检索）
 - **AI 标注**：用 ChatLuna 视觉模型生成 `tags` 与 `aliases`
@@ -26,7 +26,7 @@ npm i koishi-plugin-memesluna
 
 聊天命令 `memesluna.stole`、`memesluna.tagall`、`memesluna.untagall` 需要权限等级 5。
 
-管理操作还需要启用 Koishi `auth` 插件，并登录权限等级至少为 1 的 Console 账号。没有有效登录凭据时，管理 HTTP 接口和 Console RPC 会拒绝请求；公开图片、合集搜索与端点转发仍可匿名访问。
+管理操作还需要启用 Koishi `auth` 插件，并登录权限等级至少为 1 的 Console 账号。没有有效登录凭据时，管理 HTTP 接口和 Console RPC 会拒绝请求；公开图片、合集搜索与外部图源跳转仍可匿名访问。
 
 自定义客户端调用 `/memesluna/api/admin/*` 时，使用 Console 登录得到的凭据发送 `Authorization: Bearer <token>`。不要把凭据放在 URL 中。内置 Console 已自动处理上传和暂缓区图片预览的鉴权。
 
@@ -40,16 +40,18 @@ npm i koishi-plugin-memesluna
 | `variableRefreshIntervalMs` | 变量刷新间隔 |
 | `injectVariablesPrompt` | `{memesluna}` 提示词模板 |
 
-本地合集固定在 Koishi 数据目录 `data/memesluna`。合集名与端点名共用路由命名空间，不能重名。
+本地合集固定在 Koishi 数据目录 `data/memesluna`。合集名与外部图源名共用路由命名空间，不能重名。
 
 ## Console 用法
 
 启用插件后，控制台会出现 **MemesLuna** 页面：
 
-1. 在「表情包管理」新建合集并上传本地图或导入外链  
-2. 在「分发管理」创建端点，转发到外部图源  
-3. 在「预览」查看注入给 ChatLuna 的路由与提示词  
-4. 在「暂缓区」复核后归档到合集  
+1. 在「表情包」新建合集，上传本地图片或导入外链  
+2. 在「外部图源」添加随机图片 API，可以先点「试一下」确认能取到图  
+3. 在「暂缓区」处理自动收集或被拦下的图片：直接归档到表情包，或者删除；相似图片会自动标出并可按组处理  
+4. 在「预览」查看注入给 ChatLuna 的路由、提示词和 AI 标注状态  
+
+管理页里的缩略图由浏览器直接加载。外链或外部图源显示「无法预览」时，常见原因是防盗链、跨域限制、HTTPS 页面里的 HTTP 图片，或者只有服务器能访问的内网地址（例如 Docker 容器名）。这不代表机器人发图一定失败。
 
 图片可维护：
 
@@ -69,7 +71,7 @@ npm i koishi-plugin-memesluna
 | 路径 | 作用 |
 |------|------|
 | `/memesluna/` | 跳转 Console |
-| `/memesluna/:name` | 合集随机图，或端点 302 |
+| `/memesluna/:name` | 合集随机图，或外部图源 302 |
 | `/memesluna?q=关键词` | 跨合集关键词搜索 |
 | `/memesluna/合集名?q=关键词` | 合集内搜索（无匹配时退回随机） |
 | `/memesluna/:collection/:filename` | 本地图直链 |
@@ -84,7 +86,7 @@ npm i koishi-plugin-memesluna
 
 开启 `injectVariables` 后注入：
 
-- `{endpoint}`：可用合集与端点清单  
+- `{endpoint}`：可用合集与外部图源清单  
 - `{memesluna}`：由 `injectVariablesPrompt` 渲染的使用说明  
 
 模板占位符：`{endpoint}`、`{base_url}`、`{backend_path}`（以及兼容用的空占位 `{tag_routes}`、`{tags}`）。
@@ -106,7 +108,9 @@ memesluna.untagall -c 合集名
 
 ## 自动收集与暂缓区
 
-开启 `autoCollect` 后监听群聊图片；窗口内出现次数达到阈值则进入暂缓区。
+开启 `autoCollect` 后监听群聊图片；窗口内出现次数达到阈值则进入暂缓区。该选项默认关闭，关闭时暂缓区只会收到上传时超过 10 MB 的图片。
+
+`minEmojiSize` 默认 4 KB。QQ 表情大多在 5~40 KB，设得太高会让大部分表情直接被忽略。
 
 主要配置：`emojiFrequencyWindowMinutes`、`emojiFrequencyThreshold`、`minEmojiSize` / `maxEmojiSize`、`groupAutoCollectLimit`、`similarityThreshold`、`stagingRetentionDays`。
 
@@ -117,7 +121,7 @@ memesluna.untagall -c 合集名
 ## 命令
 
 ```text
-memesluna.list          # 列出可用合集与端点
+memesluna.list          # 列出可用合集与外部图源
 memesluna.stole <合集>  # 引用图片写入合集（需先创建合集）
 ```
 

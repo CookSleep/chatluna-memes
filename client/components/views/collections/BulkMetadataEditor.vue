@@ -1,117 +1,64 @@
 <template>
-              <div v-if="bulkTagEditorVisible" class="tag-editor-overlay" @click.self="bulkTagEditorVisible = false">
-                <div class="tag-editor-dialog">
-                  <div class="tag-editor-header">
-                    <div>
-                      <div class="tag-editor-title">批量设置语义标注</div>
-                      <div class="tag-editor-subtitle">已选择 {{ selectedImages.length }} 张图片</div>
-                    </div>
-                    <button @click="bulkTagEditorVisible = false" class="icon-btn hover-bg" :disabled="bulkTagEditorSaving">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
-                        <path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>
-                      </svg>
-                    </button>
-                  </div>
-                  <div class="tag-editor-body">
-                    <!-- Operation Mode Toggle -->
-                    <div class="tag-editor-mode-row">
-                      <span>操作模式</span>
-                      <div class="view-toggle-pill">
-                        <button
-                          :class="['pill-btn', bulkTagOperationMode === 'add' ? 'active' : '']"
-                          @click="bulkTagOperationMode = 'add'"
-                        >
-                          追加标注
-                        </button>
-                        <button
-                          :class="['pill-btn', bulkTagOperationMode === 'replace' ? 'active' : '']"
-                          @click="bulkTagOperationMode = 'replace'"
-                        >
-                          覆盖标注
-                        </button>
-                      </div>
-                    </div>
+  <ModalShell :open="bulkTagEditorVisible" size="medium" label="批量编辑标注" :closable="!bulkTagEditorSaving" @close="bulkTagEditorVisible = false">
+      <div class="ml-dialog-head is-split">
+        <div>
+          <h3>批量编辑标注</h3>
+          <p class="ml-hint">将应用到选中的 {{ selectedLocalImages.length }} 张本地图片<template v-if="selectedLinks.length">，外链不支持标注，已跳过 {{ selectedLinks.length }} 个</template></p>
+        </div>
+        <button type="button" class="ml-icon-btn" title="关闭" :disabled="bulkTagEditorSaving" @click="bulkTagEditorVisible = false">
+          <Icon name="x" />
+        </button>
+      </div>
 
-                    <!-- Tags Section -->
-                    <div class="tag-section-wrapper">
-                      <div class="tag-section-label">
-                        <span>🏷️</span>
-                        <span>批量添加语义标签 (Tags)</span>
-                      </div>
-                      <div class="tag-editor-list">
-                        <span
-                          v-for="tag in bulkTagEditorTags"
-                          :key="tag"
-                          class="tag-editor-tag"
-                        >
-                          {{ tag }}
-                          <button @click="removeTagFromBulkEditor(tag)" class="tag-remove-btn" :disabled="bulkTagEditorSaving">×</button>
-                        </span>
-                        <span v-if="!bulkTagEditorTags.length" class="tag-editor-empty">等待添加标签</span>
-                      </div>
-                      <div class="tag-editor-input-row">
-                        <input
-                          v-model="bulkTagEditorInput"
-                          class="flat-input tag-editor-input"
-                          list="allowed-tags-list"
-                          placeholder="输入情绪、动作、场景或元素标签"
-                          @keyup.enter="addTagToBulkEditor"
-                          :disabled="bulkTagEditorSaving"
-                        />
-                        <button @click="addTagToBulkEditor" class="btn btn-secondary btn-small" :disabled="!bulkTagEditorInput.trim() || bulkTagEditorSaving">
-                          添加
-                        </button>
-                      </div>
-                    </div>
+      <div class="ml-field">
+        <div class="ml-field-label"><span>应用方式</span></div>
+        <div class="ml-segmented is-full">
+          <button type="button" :class="{ 'is-active': bulkTagOperationMode === 'add' }" @click="bulkTagOperationMode = 'add'">追加到现有标注</button>
+          <button type="button" :class="{ 'is-active': bulkTagOperationMode === 'replace' }" @click="bulkTagOperationMode = 'replace'">替换现有标注</button>
+        </div>
+      </div>
 
-                    <!-- Aliases Section -->
-                    <div class="tag-section-wrapper">
-                      <div class="tag-section-label">
-                        <span>🔍</span>
-                        <span>批量添加检索别名 (Aliases)</span>
-                      </div>
-                      <div class="tag-editor-list">
-                        <span
-                          v-for="alias in bulkTagEditorAliases"
-                          :key="alias"
-                          class="tag-editor-tag is-alias"
-                        >
-                          {{ alias }}
-                          <button @click="removeAliasFromBulkEditor(alias)" class="tag-remove-btn" :disabled="bulkTagEditorSaving">×</button>
-                        </span>
-                        <span v-if="!bulkTagEditorAliases.length" class="tag-editor-empty">等待添加别名</span>
-                      </div>
-                      <div class="tag-editor-input-row">
-                        <input
-                          v-model="bulkAliasEditorInput"
-                          class="flat-input tag-editor-input"
-                          placeholder="输入自然语言检索短语，回车添加"
-                          @keyup.enter="addAliasToBulkEditor"
-                          :disabled="bulkTagEditorSaving"
-                        />
-                        <button @click="addAliasToBulkEditor" class="btn btn-secondary btn-small" :disabled="!bulkAliasEditorInput.trim() || bulkTagEditorSaving">
-                          添加
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="tag-editor-footer">
-                    <button @click="bulkTagEditorVisible = false" class="btn btn-secondary" :disabled="bulkTagEditorSaving">
-                      取消
-                    </button>
-                    <button @click="saveBulkTagEditor" class="btn btn-primary" :disabled="bulkTagEditorSaving || (!bulkTagEditorTags.length && !bulkTagEditorAliases.length)">
-                      {{ bulkTagEditorSaving ? '保存中...' : '确认应用' }}
-                    </button>
-                  </div>
-                </div>
-              </div>
+      <div class="ml-field">
+        <div class="ml-field-label"><span>语义标签</span></div>
+        <div class="ml-chip-box">
+          <span v-for="tag in bulkTagEditorTags" :key="tag" class="ml-tag is-removable" :style="{ '--tag-hue': tagHue(tag) }">
+            {{ tag }}
+            <button type="button" :disabled="bulkTagEditorSaving" @click="removeTagFromBulkEditor(tag)">×</button>
+          </span>
+          <input v-model="bulkTagEditorInput" class="ml-chip-input" placeholder="输入后按回车添加" :disabled="bulkTagEditorSaving" @keydown.enter.prevent="$event.isComposing || addTagToBulkEditor()" />
+        </div>
+      </div>
+
+      <div class="ml-field">
+        <div class="ml-field-label"><span>检索别名</span></div>
+        <div class="ml-chip-box">
+          <span v-for="alias in bulkTagEditorAliases" :key="alias" class="ml-tag is-alias is-removable">
+            {{ alias }}
+            <button type="button" :disabled="bulkTagEditorSaving" @click="removeAliasFromBulkEditor(alias)">×</button>
+          </span>
+          <input v-model="bulkAliasEditorInput" class="ml-chip-input" placeholder="输入后按回车添加" :disabled="bulkTagEditorSaving" @keydown.enter.prevent="$event.isComposing || addAliasToBulkEditor()" />
+        </div>
+      </div>
+
+      <p v-if="bulkTagOperationMode === 'replace'" class="ml-callout is-warning">替换会清空这些图片原有的标签和别名，只保留上面填写的内容。</p>
+
+      <div class="ml-dialog-actions">
+        <button type="button" class="ml-btn" :disabled="bulkTagEditorSaving" @click="bulkTagEditorVisible = false">取消</button>
+        <button type="button" class="ml-btn is-primary" :disabled="bulkTagEditorSaving || (!bulkTagEditorTags.length && !bulkTagEditorAliases.length)" @click="saveBulkTagEditor">
+          {{ bulkTagEditorSaving ? '保存中…' : '应用' }}
+        </button>
+      </div>
+  </ModalShell>
 </template>
 <script lang="ts">
+import Icon from '../../shared/Icon.vue'
+import ModalShell from '../../shared/ModalShell.vue'
 import { defineComponent } from 'vue'
 import { useDashboardContext } from '../../../composables/dashboardContext'
 
 export default defineComponent({
   name: 'BulkMetadataEditor',
+  components: { ModalShell, Icon },
   setup() {
     return useDashboardContext()
   },

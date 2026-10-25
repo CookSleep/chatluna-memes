@@ -88,6 +88,12 @@ function sendImage(koa: any, image: { buffer: Buffer; mime: string }) {
   koa.body = image.buffer
 }
 
+/** Console 页面地址；console 是可选依赖，用 ctx.get 避免未声明注入的警告。 */
+function getConsolePageUrl(ctx: Context): string {
+  const uiPath: string = (ctx.get('console') as any)?.config?.uiPath ?? ''
+  return `${uiPath.replace(/\/+$/, '')}/memesluna`
+}
+
 export function applyServer(ctx: Context, config: Config, service: MemesLunaService) {
   if (!ctx.server) return
 
@@ -180,11 +186,11 @@ export function applyServer(ctx: Context, config: Config, service: MemesLunaServ
   })
 
   server.get(`${basePath}/admin`, async (koa) => {
-    koa.redirect('/console/memesluna')
+    koa.redirect(getConsolePageUrl(ctx))
   })
 
   server.get(`${basePath}/admin/endpoint`, async (koa) => {
-    koa.redirect('/console/memesluna')
+    koa.redirect(getConsolePageUrl(ctx))
   })
 
   server.get(`${basePath}/api/collections/:name/images/:filename`, async (koa) => {
@@ -209,7 +215,7 @@ export function applyServer(ctx: Context, config: Config, service: MemesLunaServ
       return
     }
 
-    koa.redirect('/console/memesluna')
+    koa.redirect(getConsolePageUrl(ctx))
   })
 
   server.get(`${basePath}/:name`, async (koa) => {

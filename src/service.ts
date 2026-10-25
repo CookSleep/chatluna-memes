@@ -284,6 +284,8 @@ export class MemesLunaService extends Service {
     force?: boolean
     /** 手动单张标注不等待已排队的批量任务。 */
     immediate?: boolean
+    /** 只生成标注交给调用方，不写入数据库（编辑弹窗里由用户确认后再保存）。 */
+    onPreview?: (result: { aliases: string[]; tags: string[] }) => void
     onProgress?: (success: number, fail: number) => void | Promise<void>
   }): Promise<{ success: number; fail: number; skipped: number; cancelled: number }> {
     if (!this._annotator || !rows.length) return { success: 0, fail: 0, skipped: 0, cancelled: 0 }
@@ -302,6 +304,10 @@ export class MemesLunaService extends Service {
       })
       if (signal.aborted) return 'cancelled'
       if (!result) return 'fail'
+      if (options?.onPreview) {
+        options.onPreview(result)
+        return 'success'
+      }
       return await this.updateImageAnnotation(stored.id, result.aliases, result.tags) ? 'success' : 'skipped'
     }, this.config.aiBatchDelay || 0, options?.onProgress, (error) => this.ctx.logger('memesluna').warn('Annotation task failed:', error), options?.immediate)
   }
@@ -836,6 +842,35 @@ export class MemesLunaService extends Service {
     return true
   }
 
+  async renameCollection(collectionName: string, newName: string): Promise<boolean> {
+    return withStorageLock(this.getStorageRoot(), () => this.renameCollectionUnlocked(collectionName, newName))
+  }
+
+  private async renameCollectionUnlocked(collectionName: string, newName: string): Promise<boolean> {
+    this.ensureCollectionName(collectionName)
+    this.ensureCollectionName(newName)
+    if (collectionName === newName) return true
+    if (!(await this.collectionExists(collectionName))) return false
+    if (await this.collectionExists(newName)) throw new Error(`已经有叫「${newName}」的表情包了`)
+    if (await this.getEndpointByName(newName)) throw new Error(`「${newName}」已被外部图源占用`)
+
+    const oldDir = this.getCollectionDir(collectionName)
+    const newDir = this.getCollectionDir(newName)
+    await fs.rename(oldDir, newDir)
+    // 外链清单文件以合集名命名，需要跟着改名。
+    const oldLinksFile = path.join(newDir, `${collectionName}.txt`)
+    const linksRenamed = await fs.rename(oldLinksFile, this.getCollectionLinksFile(newName)).then(() => true, () => false)
+    try {
+      await this.ctx.database.set('memesluna_images', { collection: collectionName }, { collection: newName })
+    } catch (error) {
+      if (linksRenamed) await fs.rename(this.getCollectionLinksFile(newName), oldLinksFile)
+      await fs.rename(newDir, oldDir)
+      throw error
+    }
+    this.notifyImagesChanged()
+    return true
+  }
+
   async collectionExists(collectionName: string): Promise<boolean> {
     if (!this.isValidCollectionName(collectionName)) {
       return false
@@ -1163,17 +1198,20 @@ export class MemesLunaService extends Service {
     if (!Number.isFinite(offset)) throw new Error('Invalid page offset')
     const query: any = { collection: collectionName }
     if (input.type === 'local' || input.type === 'external') query.type = input.type
+    const conditions: any[] = []
     if (input.selected !== undefined) {
       if (!Array.isArray(input.selected) || input.selected.length > 5000 || input.selected.some((item) => typeof item !== 'string')) throw new Error('Invalid selection')
       if (!input.selected.length) return { items: [], total: 0, offset, limit }
-      query.type = 'local'
-      query.filename = input.selected
+      // 前端用本地图片的文件名、外链的地址作为选择标识。
+      conditions.push({ $or: [{ type: 'local', filename: input.selected }, { type: 'external', value: input.selected }] })
     }
     const search = typeof input.search === 'string' ? input.search.trim().slice(0, 200) : ''
     if (search) {
       const pattern = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
-      query.$or = [{ filename: { $regex: pattern } }, { value: { $regex: pattern } }]
+      conditions.push({ $or: [{ filename: { $regex: pattern } }, { value: { $regex: pattern } }] })
     }
+    if (conditions.length === 1) Object.assign(query, conditions[0])
+    else if (conditions.length) query.$and = conditions
     const total = await this.ctx.database.eval('memesluna_images', (row) => Eval.count(row.id), query)
     const rows = await this.ctx.database.get('memesluna_images', query, {
       limit, offset, sort: { filename: input.sort === 'nameDesc' ? 'desc' : 'asc', id: 'asc' },
@@ -1644,6 +1682,12 @@ export class MemesLunaService extends Service {
       updated_at: new Date(),
     }
 
+    if (input.name !== undefined && input.name !== name) {
+      this.ensureEndpointName(input.name)
+      if (await this.getEndpointByName(input.name)) throw new Error(`已经有叫「${input.name}」的外部图源了`)
+      if (await this.collectionExists(input.name)) throw new Error(`「${input.name}」已被表情包占用`)
+      payload.name = input.name
+    }
     if (input.group !== undefined) payload.group = input.group || '默认分组'
     if (input.description !== undefined) payload.description = input.description || ''
     if (input.url !== undefined) payload.url = input.url

@@ -1,166 +1,194 @@
 <template>
-        <div class="distribution-router-view">
-          <div class="notion-db-header page-section-header">
-            <div>
-              <h1 class="notion-main-title">分发管理</h1>
-              <p class="section-desc compact">管理统一重定向端点与外部目标地址</p>
-            </div>
-            <button @click="openEndpointEditor" class="btn btn-primary btn-notion">
-              + 新建端点
-            </button>
+  <section class="ml-view">
+    <header class="ml-view-head">
+      <div class="ml-view-title">
+        <h1 class="ml-title">外部图源</h1>
+        <div class="ml-actions">
+        <button type="button" class="ml-btn is-primary" @click="openEndpointEditor">
+          <Icon name="plus" />
+          添加图源
+        </button>
+        </div>
+      </div>
+      <p class="ml-subtitle">接入外部的随机图片 API。<br />访问 <code>{{ backendPath }}/名称</code> 时会 302 跳转到图源地址，ChatLuna 也能像使用表情包一样使用它。</p>
+    </header>
+
+    <div v-if="endpoints.length" class="ml-callout">
+      <Icon name="info" />
+      <span>缩略图由你的浏览器直接加载，显示「无法预览」不一定是图源坏了。<br />可能是防盗链、跨域限制、HTTPS 页面里的 HTTP 图片，或者只有服务器能访问的内网地址，请以机器人实际发图为准。</span>
+    </div>
+
+    <div v-if="!endpoints.length" class="ml-empty">
+      <div class="ml-empty-icon">
+        <Icon name="link" />
+      </div>
+      <h3>还没有外部图源</h3>
+      <p>填写一个每次访问都返回随机图片的地址，比如 <code>https://example.com/random</code>。</p>
+      <button type="button" class="ml-btn is-primary" @click="openEndpointEditor">添加图源</button>
+    </div>
+
+    <div v-else class="ml-source-list">
+      <article v-for="item in endpoints" :key="item.name" class="ml-card ml-source-card">
+        <a class="ml-source-thumb" :href="getBaseRedirectUrl(item.name)" target="_blank" rel="noopener" title="在新标签页打开">
+          <img
+            v-if="!brokenThumbs.has(item.name)"
+            :src="thumbUrl(item.name)"
+            loading="lazy"
+            referrerpolicy="no-referrer"
+            alt=""
+            @error="markBroken(item.name)"
+          />
+          <span v-else class="ml-source-thumb-fallback" :title="crossOriginHint">
+            <Icon name="image" />
+            无法预览
+          </span>
+        </a>
+        <div class="ml-source-main">
+          <div class="ml-source-title">
+            <h3>{{ item.name }}</h3>
+            <span v-if="item.description" class="ml-source-desc">{{ item.description }}</span>
           </div>
-          <hr class="notion-hr" />
-
-          <div class="endpoint-layout">
-
-            <!-- Endpoint Editor Form Panel -->
-            <div v-show="showEndpointEditor" class="notion-form-panel endpoint-editor-panel">
-              <div class="panel-title-row">
-                <h2 class="notion-panel-title">
-                  {{ editingEndpoint ? '编辑分发端点' : '创建新分发端点' }}
-                </h2>
-                <button @click="closeEndpointEditor" class="icon-btn hover-bg" title="收起编辑器">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="18" y1="6" x2="6" y2="18"></line>
-                    <line x1="6" y1="6" x2="18" y2="18"></line>
-                  </svg>
-                </button>
-              </div>
-
-              <div class="form-fields endpoint-form-grid">
-                <div class="form-group">
-                  <label>端点名称 *</label>
-                  <input
-                    v-model="endpointForm.name"
-                    :disabled="!!editingEndpoint"
-                    class="flat-input"
-                    placeholder="例如: moe"
-                  />
-                  <span class="field-hint">支持中文、字母、数字、下划线和连字符，不能与表情包重名</span>
-                </div>
-
-                <div class="form-group">
-                  <label>描述</label>
-                  <input
-                    v-model="endpointForm.description"
-                    class="flat-input"
-                    placeholder="例如: 萌版横图"
-                  />
-                </div>
-
-                <div class="form-group span-2">
-                  <label>目标 URL *</label>
-                  <input
-                    v-model="endpointForm.url"
-                    class="flat-input"
-                    placeholder="https://example.com/api"
-                  />
-                </div>
-
-                <div class="endpoint-preview span-2">
-                  <span>访问预览</span>
-                  <code @click="copyToClipboard(endpointPreviewUrl)">{{ endpointPreviewUrl || '填写端点名称后生成预览' }}</code>
-                </div>
-
-                <div class="form-actions span-2">
-                  <button @click="saveEndpoint" class="btn btn-primary flex-grow">
-                    {{ editingEndpoint ? '保存修改' : '立即创建' }}
-                  </button>
-                  <button @click="closeEndpointEditor" class="btn btn-secondary">
-                    取消
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Endpoints Table List -->
-            <div class="notion-table-panel">
-              <div class="table-title-row">
-                <h2 class="notion-panel-title">端点列表</h2>
-                <span class="table-count">{{ endpoints.length }} 条路由</span>
-              </div>
-              <div class="table-container">
-                <table class="flat-table">
-                  <thead>
-                    <tr>
-                      <th style="width: 18%">名称</th>
-                      <th style="width: 20%">描述</th>
-                      <th style="width: 17%">方式</th>
-                      <th style="width: 35%">访问路径 & 转发目标</th>
-                      <th style="width: 10%; text-align: right">管理</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-if="!endpoints.length">
-                      <td colspan="5" class="empty-cell">尚未配置任何转发 API 端点</td>
-                    </tr>
-                    <tr v-for="item in endpoints" :key="item.name">
-                      <td>
-                        <div class="endpoint-name">{{ item.name }}</div>
-                      </td>
-                      <td class="cell-desc" :title="item.description">
-                        {{ item.description || '-' }}
-                      </td>
-                      <td>
-                        <span class="method-tag redirect">重定向</span>
-                        <div class="target-url">302 重定向</div>
-                      </td>
-                      <td class="font-mono">
-                        <div class="url-line">
-                          <span class="link-text" @click="copyToClipboard(getBaseRedirectUrl(item.name))">
-                            {{ getRouteDisplayPath(item.name) }}
-                          </span>
-                          <button @click="copyToClipboard(getBaseRedirectUrl(item.name))" class="icon-btn-inline" title="复制完整链接">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                            </svg>
-                          </button>
-                        </div>
-                        <div class="target-url truncate" :title="item.url">
-                          → {{ item.url }}
-                        </div>
-                      </td>
-                      <td style="text-align: right">
-                        <div class="action-buttons">
-                          <a :href="getBaseRedirectUrl(item.name)" target="_blank" class="icon-btn hover-bg" title="测试该端点访问">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                              <polyline points="15 3 21 3 21 9"></polyline>
-                              <line x1="10" y1="14" x2="21" y2="3"></line>
-                            </svg>
-                          </a>
-                          <button @click="editEndpoint(item)" class="icon-btn hover-bg" title="编辑参数">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                              <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                            </svg>
-                          </button>
-                          <button @click="deleteEndpoint(item.name)" class="icon-btn hover-danger" title="彻底删除">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                              <polyline points="3 6 5 6 21 6"></polyline>
-                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
+          <div class="ml-source-row">
+            <span class="ml-label">访问地址</span>
+            <button type="button" class="ml-link-code" title="点击复制" @click="copyToClipboard(getBaseRedirectUrl(item.name))">{{ getDisplayPath(item.name) }}</button>
+          </div>
+          <div class="ml-source-row">
+            <span class="ml-label">跳转到</span>
+            <span class="ml-mono ml-truncate" :title="item.url">{{ item.url }}</span>
           </div>
         </div>
+        <div class="ml-source-actions">
+          <button type="button" class="ml-icon-btn" title="换一张" @click="reloadThumb(item.name)">
+            <Icon name="refresh" />
+          </button>
+          <button type="button" class="ml-icon-btn" title="编辑" @click="editEndpoint(item)">
+            <Icon name="edit" />
+          </button>
+          <button type="button" class="ml-icon-btn is-danger" title="删除" @click="deleteEndpoint(item.name)">
+            <Icon name="trash" />
+          </button>
+        </div>
+      </article>
+    </div>
+
+    <ModalShell :open="showEndpointEditor" as="form" size="medium" :label="editingEndpoint ? '编辑图源' : '添加图源'" @close="closeEndpointEditor" @submit="saveEndpoint">
+        <div class="ml-dialog-head is-split">
+          <h3>{{ editingEndpoint ? `编辑图源「${editingEndpoint.name}」` : '添加图源' }}</h3>
+          <button type="button" class="ml-icon-btn" title="关闭" @click="closeEndpointEditor">
+            <Icon name="x" />
+          </button>
+        </div>
+
+        <label class="ml-field">
+          <span class="ml-field-label"><span>名称</span><span class="ml-hint">{{ editingEndpoint ? '改名后访问地址会跟着变' : '用于访问地址' }}</span></span>
+          <input v-model="endpointForm.name" class="ml-input" :class="{ 'is-invalid': endpointNameError }" placeholder="例如：werewolves" autofocus />
+          <span v-if="endpointNameError" class="ml-field-error">{{ endpointNameError }}</span>
+        </label>
+
+        <label class="ml-field">
+          <span class="ml-field-label"><span>描述</span><span class="ml-hint">会展示给 ChatLuna，帮助它判断什么时候用</span></span>
+          <input v-model="endpointForm.description" class="ml-input" placeholder="例如：随机狼图" />
+        </label>
+
+        <label class="ml-field">
+          <span class="ml-field-label"><span>图源地址</span><span class="ml-hint">每次访问返回一张随机图片的 URL</span></span>
+          <div class="ml-input-group">
+            <input v-model="endpointForm.url" class="ml-input" :class="{ 'is-invalid': endpointUrlError }" placeholder="https://example.com/random" @input="endpointTestState = 'idle'" />
+            <button type="button" class="ml-btn" :disabled="!endpointForm.url.trim() || !!endpointUrlError || endpointTestState === 'loading'" @click="testEndpointTarget"><Icon :name="endpointTestState === 'idle' ? 'play' : 'shuffle'" />{{ endpointTestState === 'idle' ? '试一下' : '换一张' }}</button>
+          </div>
+          <span v-if="endpointUrlError" class="ml-field-error">{{ endpointUrlError }}</span>
+        </label>
+
+        <div v-if="endpointTestState !== 'idle'" class="ml-test-preview" :class="`is-${endpointTestState}`">
+          <div class="ml-test-stage">
+            <img
+              :key="endpointTestKey"
+              :src="withNonce(endpointForm.url.trim(), endpointTestKey)"
+              alt="图源预览"
+              referrerpolicy="no-referrer"
+              @load="onTestLoad"
+              @error="endpointTestState = 'error'"
+            />
+            <div v-if="endpointTestState === 'loading'" class="ml-test-overlay">
+              <span class="ml-spinner"></span>
+              <span>正在请求图源…</span>
+            </div>
+            <div v-else-if="endpointTestState === 'error'" class="ml-test-overlay">
+              <Icon name="imageOff" />
+              <span>浏览器没能加载这个图源</span>
+            </div>
+          </div>
+          <div class="ml-test-meta">
+            <template v-if="endpointTestState === 'ok'">
+              <span class="ml-status-dot is-success"></span>
+              <span>已取到图片{{ testImageSize ? ` · ${testImageSize}` : '' }}</span>
+            </template>
+            <template v-else-if="endpointTestState === 'error'">
+              <span class="ml-status-dot is-warning"></span>
+              <span>加载失败，不一定是地址错误，见下方说明</span>
+            </template>
+            <template v-else>
+              <span class="ml-status-dot"></span>
+              <span>加载中</span>
+            </template>
+          </div>
+          <p v-if="endpointTestState === 'error'" class="ml-test-help">{{ crossOriginHint }}
+如果是 Docker 容器名这类内网地址，只要机器人和图源在同一网络里，发图仍然可以正常工作。</p>
+        </div>
+
+        <div class="ml-preview-line">
+          <span class="ml-label">访问地址</span>
+          <code>{{ endpointForm.name.trim() ? getDisplayPath(endpointForm.name.trim()) : '填写名称后生成' }}</code>
+        </div>
+
+        <div class="ml-dialog-actions">
+          <button type="button" class="ml-btn" @click="closeEndpointEditor">取消</button>
+          <button type="submit" class="ml-btn is-primary" :disabled="!endpointForm.name.trim() || !endpointForm.url.trim() || !!endpointNameError || !!endpointUrlError">
+            {{ editingEndpoint ? '保存' : '添加' }}
+          </button>
+        </div>
+    </ModalShell>
+  </section>
 </template>
 <script lang="ts">
-import { defineComponent } from 'vue'
+import Icon from '../../shared/Icon.vue'
+import ModalShell from '../../shared/ModalShell.vue'
+import { defineComponent, reactive, ref } from 'vue'
 import { useDashboardContext } from '../../../composables/dashboardContext'
 
 export default defineComponent({
   name: 'EndpointsView',
+  components: { ModalShell, Icon },
   setup() {
-    return useDashboardContext()
+    const ctx = useDashboardContext()
+    const brokenThumbs = ref(new Set<string>())
+    const testImageSize = ref('')
+
+    function onTestLoad(event: Event) {
+      const img = event.target as HTMLImageElement
+      testImageSize.value = img.naturalWidth ? `${img.naturalWidth} × ${img.naturalHeight}` : ''
+      ctx.endpointTestState.value = 'ok'
+    }
+    const thumbNonce = reactive<Record<string, number>>({})
+
+    function withNonce(url: string, nonce: number) {
+      if (!nonce) return url
+      return url + (url.includes('?') ? '&' : '?') + '_ml=' + nonce
+    }
+    function thumbUrl(name: string) {
+      return withNonce(ctx.getBaseRedirectUrl(name), thumbNonce[name] || 0)
+    }
+    function markBroken(name: string) {
+      brokenThumbs.value = new Set(brokenThumbs.value).add(name)
+    }
+    function reloadThumb(name: string) {
+      const next = new Set(brokenThumbs.value)
+      next.delete(name)
+      brokenThumbs.value = next
+      thumbNonce[name] = Date.now()
+    }
+
+    return { ...ctx, brokenThumbs, thumbUrl, markBroken, reloadThumb, withNonce, testImageSize, onTestLoad }
   },
 })
 </script>

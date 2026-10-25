@@ -1,264 +1,148 @@
 <template>
-              <section class="asset-gallery-section">
-                <div class="asset-gallery-toolbar">
-                  <div class="asset-tabs">
-                    <button @click="currentGalleryTab = 'all'; currentPage = 1" :class="['asset-tab', currentGalleryTab === 'all' ? 'active' : '']">
-                      全部 <span>{{ currentCollectionTotalCount }}</span>
-                    </button>
-                    <button @click="currentGalleryTab = 'local'; currentPage = 1" :class="['asset-tab', currentGalleryTab === 'local' ? 'active' : '']">
-                      本地图片 <span>{{ detailResources.images.length }}</span>
-                    </button>
-                    <button @click="currentGalleryTab = 'external'; currentPage = 1" :class="['asset-tab', currentGalleryTab === 'external' ? 'active' : '']">
-                      外链图片 <span>{{ detailResources.links.length }}</span>
-                    </button>
-                  </div>
+  <section class="ml-gallery">
+    <div class="ml-toolbar">
+      <div class="ml-segmented is-filter">
+        <button type="button" :class="{ 'is-active': currentGalleryTab === 'all' }" @click="currentGalleryTab = 'all'">
+          全部 <span>{{ currentCollectionTotalCount }}</span>
+        </button>
+        <button type="button" :class="{ 'is-active': currentGalleryTab === 'local' }" @click="currentGalleryTab = 'local'">
+          本地 <span>{{ currentCollection.localCount }}</span>
+        </button>
+        <button type="button" :class="{ 'is-active': currentGalleryTab === 'external' }" @click="currentGalleryTab = 'external'">
+          外链 <span>{{ currentCollection.linkCount }}</span>
+        </button>
+      </div>
+      <label class="ml-search">
+        <Icon name="search" />
+        <input v-model="gallerySearch" placeholder="搜索文件名、标签或别名" />
+      </label>
+      <div class="ml-toolbar-end">
+        <el-select v-model="galleryFilter" class="ml-select is-narrow" aria-label="筛选">
+          <el-option value="all" label="全部图片" />
+          <el-option value="selected" label="只看已选" />
+        </el-select>
+        <el-select v-model="gallerySort" class="ml-select is-narrow" aria-label="排序">
+          <el-option value="name" label="文件名 A→Z" />
+          <el-option value="nameDesc" label="文件名 Z→A" />
+        </el-select>
+        <div class="ml-segmented is-icon">
+          <button type="button" :class="{ 'is-active': galleryViewMode === 'grid' }" title="网格" @click="galleryViewMode = 'grid'"><Icon name="grid" /></button>
+          <button type="button" :class="{ 'is-active': galleryViewMode === 'list' }" title="列表" @click="galleryViewMode = 'list'"><Icon name="list" /></button>
+        </div>
+      </div>
+    </div>
 
-                  <div class="asset-filter-bar">
-                    <div class="asset-search-box">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <path d="m21 21-4.3-4.3"></path>
-                      </svg>
-                      <input v-model="gallerySearch" placeholder="搜索图片或外链" />
-                    </div>
-                    <select v-model="galleryFilter" class="asset-select">
-                      <option value="all">筛选: 全部</option>
-                      <option value="selected">筛选: 已选</option>
-                    </select>
-                    <select v-model="gallerySort" class="asset-select">
-                      <option value="name">排序: 文件名</option>
-                      <option value="nameDesc">排序: 文件名倒序</option>
-                    </select>
-                    <div class="asset-view-toggle">
-                      <button @click="galleryViewMode = 'grid'" :class="galleryViewMode === 'grid' ? 'active' : ''" title="网格视图">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-                          <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-                          <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-                          <rect x="14" y="14" width="7" height="7" rx="1"></rect>
-                        </svg>
-                      </button>
-                      <button @click="galleryViewMode = 'list'" :class="galleryViewMode === 'list' ? 'active' : ''" title="列表视图">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                          <path d="M8 6h13"></path>
-                          <path d="M8 12h13"></path>
-                          <path d="M8 18h13"></path>
-                          <path d="M3 6h.01"></path>
-                          <path d="M3 12h.01"></path>
-                          <path d="M3 18h.01"></path>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                </div>
+    <div v-if="!currentCollection.totalCount" class="ml-empty is-dashed" @click="triggerFileInput">
+      <div class="ml-empty-icon"><Icon name="upload" /></div>
+      <h3>这个表情包还是空的</h3>
+      <p>点击这里选择图片，或者直接把图片拖进页面。</p>
+    </div>
+    <div v-else-if="!filteredGalleryItems.length" class="ml-empty is-compact">
+      <h3>没有匹配的图片</h3>
+      <p>换个关键词或筛选条件试试。</p>
+    </div>
 
-            <div class="gallery-tab-content">
-              <div v-if="!currentCollection.totalCount" class="empty-gallery">
-                表情包内尚无任何图片资源
-              </div>
-              <div v-else-if="!filteredGalleryItems.length" class="empty-gallery">
-                没有匹配当前搜索或筛选条件的图片
-              </div>
-              <div v-else>
-                <div v-if="selectedImages.length" class="gallery-bulk-toolbar floating">
-                  <div class="bulk-status">
-                    <span class="bulk-title">本地素材</span>
-                    <span class="bulk-meta">已选择 {{ selectedImages.length }} 张</span>
-                  </div>
-                  <div class="bulk-actions">
-                    <button @click="toggleSelectCurrentPage" class="toolbar-btn compact">
-                      {{ areAllCurrentPageImagesSelected ? '取消本页' : '选择本页' }}
-                    </button>
-                    <button v-if="selectedImages.length" @click="clearSelectedImages" class="toolbar-btn compact">
-                      清空选择
-                    </button>
-                    <div v-if="selectedImages.length" class="bulk-move-group">
-                      <select v-model="bulkMoveTarget" class="flat-select compact-select">
-                        <option value="">移动到...</option>
-                        <option
-                          v-for="targetCol in collections"
-                          :key="targetCol.name"
-                          :value="targetCol.name"
-                          :disabled="targetCol.name === currentCollection.name"
-                        >
-                          {{ targetCol.name }}
-                        </option>
-                      </select>
-                      <button @click="moveSelectedImages" class="toolbar-btn compact" :disabled="!bulkMoveTarget">
-                        移动
-                      </button>
-                    </div>
-                    <button @click="openBulkTagEditor" class="toolbar-btn compact">设置标注</button>
-                    <button v-if="selectedImages.length" @click="deleteSelectedImages" class="toolbar-btn compact danger">
-                      批量删除
-                    </button>
-                  </div>
-                </div>
-
-                <div ref="galleryGridEl" :class="['notion-gallery-grid', galleryViewMode === 'list' ? 'list-mode' : '']">
-                  <div
-                    v-for="(item, index) in paginatedGalleryItems"
-                    :key="item.id"
-                    class="notion-gallery-card"
-                    :class="{
-                      'notion-gallery-card-active-dropdown': activeCardMenu === item.value,
-                      'selected': item.type === 'local' && isImageSelected(item.value),
-                      'external': item.type === 'external',
-                      'submenu-open-right': isFirstGridColumn(index)
-                    }"
-                  >
-                    <button
-                      v-if="item.type === 'local'"
-                      class="gallery-select-toggle"
-                      :class="{ checked: isImageSelected(item.value) }"
-                      @click.stop="toggleImageSelection(item.value)"
-                      :title="isImageSelected(item.value) ? '取消选择' : '选择图片'"
-                      :aria-pressed="isImageSelected(item.value)"
-                      :aria-label="isImageSelected(item.value) ? `取消选择，第 ${getImageSelectionIndex(item.value)} 张` : '选择图片'"
-                    >{{ getImageSelectionIndex(item.value) || '' }}</button>
-                    <div
-                      class="gallery-img-container"
-                      @click="handleGalleryItemClick(item)"
-                      style="cursor: pointer;"
-                      :title="item.type === 'local' && selectedImages.length ? '切换选择状态' : '在新标签页中打开原图'"
-                    >
-                      <img
-                        :src="item.src"
-                        class="gallery-img"
-                        loading="lazy"
-                      />
-                      <span class="image-format-badge" :class="item.type">{{ item.type === 'external' ? 'LINK' : getImageExtension(item.value) }}</span>
-                    </div>
-                    <div class="gallery-card-info">
-                      <div class="gallery-card-footer-row">
-                        <div class="gallery-card-title" :title="item.label">{{ item.label }}</div>
-
-                        <div class="gallery-card-menu-container">
-                          <button class="gallery-card-menu-btn" @click.stop="toggleCardMenu(item.value)" title="更多操作">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                              <circle cx="12" cy="12" r="1.5"></circle>
-                              <circle cx="19" cy="12" r="1.5"></circle>
-                              <circle cx="5" cy="12" r="1.5"></circle>
-                            </svg>
-                          </button>
-                          <div class="gallery-card-menu-dropdown" v-show="activeCardMenu === item.value" @click.stop>
-                            <template v-if="item.type === 'local'">
-                              <div v-if="getImageTags(item.value).length" class="gallery-card-menu-tags">
-                                <div class="gallery-card-menu-tags-title">语义标签</div>
-                                <div class="gallery-card-menu-tag-list">
-                                  <span
-                                    v-for="tag in getImageTags(item.value)"
-                                    :key="tag"
-                                    class="gallery-card-tag-badge"
-                                    :style="{ backgroundColor: tagColor(tag) + '14', color: tagColor(tag), borderColor: tagColor(tag) + '30' }"
-                                  >{{ tag }}</span>
-                                </div>
-                              </div>
-                              <button @click="openTagEditor(currentCollection.name, item.value); closeCardMenu()">编辑标注</button>
-                              <div v-if="collections.length > 1" class="gallery-card-submenu-trigger">
-                                <span>移动至表情包</span>
-                                <div class="gallery-card-submenu">
-                                  <template v-for="targetCol in collections">
-                                    <button v-if="targetCol.name !== currentCollection.name" :key="targetCol.name"
-                                      @click="moveImage(currentCollection.name, targetCol.name, item.value); closeCardMenu()">
-                                      {{ targetCol.name }}
-                                    </button>
-                                  </template>
-                                </div>
-                              </div>
-                              <button class="danger" @click="confirmDeleteImage(currentCollection.name, item.value); closeCardMenu()">删除图片</button>
-                            </template>
-                            <template v-else>
-                              <button @click="copyToClipboard(item.value); closeCardMenu()">复制链接</button>
-                              <button class="danger" @click="deleteExternalLink(currentCollection.name, item.value); closeCardMenu()">删除外链</button>
-                            </template>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div v-if="totalPages > 1" class="pagination-container">
-                  <button
-                    :disabled="currentPage === 1"
-                    @click="currentPage--"
-                    class="btn btn-secondary page-btn"
-                  >
-                    上一页
-                  </button>
-                  <span class="page-indicator">第 <b>{{ currentPage }}</b> / {{ totalPages }} 页</span>
-                  <button
-                    :disabled="currentPage === totalPages"
-                    @click="currentPage++"
-                    class="btn btn-secondary page-btn"
-                  >
-                    下一页
-                  </button>
-                </div>
+    <template v-else>
+      <div :class="['ml-image-grid', { 'is-list': galleryViewMode === 'list', 'is-selecting': selectedImages.length }]">
+        <article
+          v-for="item in paginatedGalleryItems"
+          :key="item.id"
+          class="ml-image-card"
+          :class="{
+            'is-selected': isImageSelected(item.value),
+            'is-menu-open': activeCardMenu === item.value,
+          }"
+          @click="handleGalleryItemClick(item, $event)"
+        >
+          <div class="ml-image-thumb" :title="selectedImages.length ? '点击切换选择' : '点击查看原图'">
+            <img v-if="!brokenImages.has(item.id)" :src="item.src" loading="lazy" alt="" referrerpolicy="no-referrer" @error="brokenImages.add(item.id)" />
+            <span v-else class="ml-thumb-fallback" :title="crossOriginHint"><Icon name="imageOff" />无法预览</span>
+            <span class="ml-badge is-floating">{{ item.type === 'external' ? '外链' : getImageExtension(item.value) }}</span>
+          </div>
+          <button
+            type="button"
+            class="ml-check"
+            :class="{ 'is-checked': isImageSelected(item.value) }"
+            :aria-pressed="isImageSelected(item.value)"
+            :title="isImageSelected(item.value) ? '取消选择' : '选择（也可以 Ctrl / ⌘ + 点击图片）'"
+            @click.stop="handleGalleryItemClick(item, { ctrlKey: true, shiftKey: $event.shiftKey })"
+          >
+            <span v-if="getImageSelectionIndex(item.value)">{{ getImageSelectionIndex(item.value) }}</span>
+            <Icon v-else name="check" />
+          </button>
+          <div class="ml-image-info">
+            <div class="ml-image-name" :title="item.label">{{ item.label }}</div>
+            <div v-if="item.type === 'local' && getImageTags(item.value).length" class="ml-tag-row">
+              <span v-for="tag in getImageTags(item.value).slice(0, 3)" :key="tag" class="ml-tag" :style="{ '--tag-hue': tagHue(tag) }">{{ tag }}</span>
+              <span v-if="getImageTags(item.value).length > 3" class="ml-tag is-more">+{{ getImageTags(item.value).length - 3 }}</span>
+            </div>
+            <div v-else-if="item.type === 'local'" class="ml-image-sub">未标注</div>
+            <div v-else class="ml-image-sub" :title="item.value">{{ item.value }}</div>
+            <div class="ml-menu-anchor ml-image-menu" @click.stop>
+              <button type="button" class="ml-icon-btn is-small" title="更多操作" :aria-expanded="activeCardMenu === item.value" @click="toggleCardMenu(item.value)"><Icon name="more" /></button>
+              <div v-if="activeCardMenu === item.value" class="ml-menu" role="menu">
+                <template v-if="item.type === 'local'">
+                  <button type="button" role="menuitem" @click="openTagEditor(currentCollection.name, item.value); closeCardMenu()"><Icon name="tag" />编辑标注</button>
+                  <button type="button" role="menuitem" @click="closeCardMenu(); toggleImageSelection(item.value)"><Icon name="selectAll" />{{ isImageSelected(item.value) ? '取消选择' : '选择' }}</button>
+                  <button type="button" role="menuitem" :disabled="collections.length < 2" @click="closeCardMenu(); moveImage(currentCollection.name, null, item.value)"><Icon name="move" />移动到…</button>
+                  <button type="button" role="menuitem" @click="openImage(item.src); closeCardMenu()"><Icon name="external" />查看原图</button>
+                  <div class="ml-menu-sep"></div>
+                  <button type="button" role="menuitem" class="is-danger" @click="closeCardMenu(); confirmDeleteImage(currentCollection.name, item.value)"><Icon name="trash" />删除</button>
+                </template>
+                <template v-else>
+                  <button type="button" role="menuitem" @click="closeCardMenu(); toggleImageSelection(item.value)"><Icon name="selectAll" />{{ isImageSelected(item.value) ? '取消选择' : '选择' }}</button>
+                  <button type="button" role="menuitem" @click="copyToClipboard(item.value); closeCardMenu()"><Icon name="copy" />复制链接</button>
+                  <button type="button" role="menuitem" @click="openImage(item.src); closeCardMenu()"><Icon name="external" />查看原图</button>
+                  <div class="ml-menu-sep"></div>
+                  <button type="button" role="menuitem" class="is-danger" @click="closeCardMenu(); deleteExternalLink(currentCollection.name, item.value)"><Icon name="trash" />删除</button>
+                </template>
               </div>
             </div>
+          </div>
+        </article>
+      </div>
 
-              </section>
+      <div v-if="totalPages > 1" class="ml-pagination">
+        <button type="button" class="ml-btn is-small" :disabled="currentPage === 1" @click="currentPage--"><Icon name="prev" />上一页</button>
+        <span>第 <b>{{ currentPage }}</b> / {{ totalPages }} 页</span>
+        <button type="button" class="ml-btn is-small" :disabled="currentPage === totalPages" @click="currentPage++">下一页<Icon name="next" /></button>
+      </div>
+    </template>
+
+    <SelectionBar :count="selectedImages.length" @clear="clearSelectedImages">
+      <button type="button" class="ml-bar-btn" @click="toggleSelectCurrentPage"><Icon name="selectAll" />{{ areAllCurrentPageImagesSelected ? '取消本页' : '全选本页' }}</button>
+      <button type="button" class="ml-bar-btn" :disabled="!selectedLocalImages.length" :title="selectedLocalImages.length ? '' : '外链不支持标注'" @click="openBulkTagEditor"><Icon name="tag" />编辑标注</button>
+      <button type="button" class="ml-bar-btn" :disabled="collections.length < 2" @click="moveSelectedImages"><Icon name="move" />移动</button>
+      <button type="button" class="ml-bar-btn is-danger" @click="deleteSelectedImages"><Icon name="trash" />删除</button>
+    </SelectionBar>
+  </section>
 </template>
 <script lang="ts">
-import { defineComponent, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { defineComponent, reactive } from 'vue'
+import Icon from '../../shared/Icon.vue'
+import SelectionBar from '../../shared/SelectionBar.vue'
 import { useDashboardContext } from '../../../composables/dashboardContext'
+import { useSelectionShortcuts } from '../../../utils/selection'
 
 export default defineComponent({
   name: 'ImageGallery',
+  components: { Icon, SelectionBar },
   setup() {
     const ctx = useDashboardContext()
-    const galleryGridEl = ref<HTMLElement | null>(null)
-    const galleryColumnCount = ref(1)
-
-    function updateGalleryColumnCount() {
-      const el = galleryGridEl.value
-      if (!el) {
-        galleryColumnCount.value = 1
-        return
-      }
-      if (ctx.galleryViewMode.value === 'list') {
-        galleryColumnCount.value = 1
-        return
-      }
-      const styles = getComputedStyle(el)
-      const cols = styles.gridTemplateColumns
-        .split(' ')
-        .map((part) => part.trim())
-        .filter(Boolean)
-      galleryColumnCount.value = Math.max(1, cols.length || 1)
-    }
-
-    function isFirstGridColumn(index: number): boolean {
-      return index % galleryColumnCount.value === 0
-    }
-
-    let resizeObserver: ResizeObserver | null = null
-
-    onMounted(() => {
-      nextTick(updateGalleryColumnCount)
-      if (typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(() => updateGalleryColumnCount())
-        if (galleryGridEl.value) resizeObserver.observe(galleryGridEl.value)
-      }
-      window.addEventListener('resize', updateGalleryColumnCount)
+    const brokenImages = reactive(new Set<string>())
+    useSelectionShortcuts({
+      selectAll: ctx.selectAllCurrentPageImages,
+      clear: () => {
+        if (ctx.activeCardMenu.value) {
+          ctx.closeCardMenu()
+          return true
+        }
+        if (!ctx.selectedImages.value.length) return false
+        ctx.clearSelectedImages()
+        return true
+      },
     })
-
-    onUnmounted(() => {
-      resizeObserver?.disconnect()
-      window.removeEventListener('resize', updateGalleryColumnCount)
-    })
-
-    watch(
-      () => [ctx.galleryViewMode.value, ctx.paginatedGalleryItems.value.length, ctx.currentPage.value],
-      () => nextTick(updateGalleryColumnCount),
-    )
-
-    return Object.assign({}, ctx, {
-      galleryGridEl,
-      isFirstGridColumn,
-    })
+    return { ...ctx, brokenImages }
   },
 })
 </script>

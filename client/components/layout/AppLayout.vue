@@ -1,19 +1,25 @@
 <template>
-  <div class="memesluna-app-layout">
-    <main class="notion-content">
+  <k-layout main="ml-page" class="ml-theme memesluna-app-layout">
+    <template #header>
       <AppHeader />
-      <MenuSwitcher v-if="!currentCollection" />
-      <Toast />
-      <LoadingSpinner v-if="loading" />
+    </template>
 
-      <div v-else class="content-body-wrapper">
-        <CollectionsView v-if="activeMenu === 'resources'" />
-        <EndpointsView v-else-if="activeMenu === 'distribution'" />
-        <StagingView v-else-if="activeMenu === 'staging'" />
-        <PreviewView v-else-if="activeMenu === 'settings'" />
+    <div class="ml-progress" :class="{ 'is-active': loading && initialized }"></div>
+    <el-scrollbar class="ml-scroll">
+      <div class="ml-container">
+        <LoadingSpinner v-if="!initialized" />
+        <template v-else>
+          <MenuSwitcher v-if="!currentCollection" />
+          <CollectionsView v-if="activeMenu === 'resources'" />
+          <EndpointsView v-else-if="activeMenu === 'distribution'" />
+          <StagingView v-else-if="activeMenu === 'staging'" />
+          <PreviewView v-else-if="activeMenu === 'settings'" />
+        </template>
       </div>
-    </main>
-  </div>
+    </el-scrollbar>
+    <Toast />
+    <AppDialog />
+  </k-layout>
 </template>
 
 <script lang="ts">
@@ -22,6 +28,7 @@ import { useDashboardContext } from '../../composables/dashboardContext'
 import AppHeader from './AppHeader.vue'
 import MenuSwitcher from './MenuSwitcher.vue'
 import Toast from '../shared/Toast.vue'
+import AppDialog from '../shared/AppDialog.vue'
 import LoadingSpinner from '../shared/LoadingSpinner.vue'
 import CollectionsView from '../views/collections/CollectionsView.vue'
 import EndpointsView from '../views/endpoints/EndpointsView.vue'
@@ -34,6 +41,7 @@ export default defineComponent({
     AppHeader,
     MenuSwitcher,
     Toast,
+    AppDialog,
     LoadingSpinner,
     CollectionsView,
     EndpointsView,

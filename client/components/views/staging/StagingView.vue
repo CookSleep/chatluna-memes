@@ -1,301 +1,163 @@
 <template>
-        <div class="staging-router-view">
-          <div class="notion-db-header page-section-header staging-page-header">
-            <div>
-              <h1 class="notion-main-title">暂缓区</h1>
-              <p class="section-desc compact">复核被上传过滤器拦截或自动收集的候选图片，再手动归档到表情包分组</p>
-            </div>
-            <div class="staging-header-actions">
-              <button
-                @click="toggleSimilarStagingMode"
-                :class="['asset-btn', 'secondary', { 'is-active': stagingViewMode === 'similar' }]"
-                :disabled="similarLoading || stagedImages.length < 2"
-              >
-                {{ similarLoading ? '筛选中...' : (stagingViewMode === 'similar' ? '显示全部' : '筛选相似图片') }}
-              </button>
-              <button @click="refreshStagedImages" class="asset-btn secondary">
-                刷新列表
-              </button>
-              <button
-                v-if="stagedImages.length"
-                @click="confirmDeleteAllStagedImages"
-                class="asset-btn danger"
-              >
-                一键清空
-              </button>
-            </div>
-          </div>
-
-          <div class="staging-toolbar">
-            <div class="asset-search-box staging-search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8"></circle>
-                <path d="m21 21-4.3-4.3"></path>
-              </svg>
-              <input v-model="stagingSearch" placeholder="搜索文件名、来源或原因" />
-            </div>
-            <div class="staging-count-pill">
-              {{ stagingViewMode === 'similar' ? similarStagedImages.length : filteredStagedImages.length }} / {{ stagedImages.length }} 张候选
-            </div>
-          </div>
-
-          <div v-if="!stagedImages.length" class="empty-placeholder-card staging-empty-card">
-            <div class="empty-icon">🕓</div>
-            <h3>暂缓区为空</h3>
-            <p>上传时被过滤器拦截或自动收集命中的候选图片会先保存在这里，等待人工复核。</p>
-          </div>
-
-          <div v-else-if="stagingViewMode === 'similar'" class="similar-staging-view">
-            <div v-if="similarLoading" class="empty-gallery">正在筛选相似图片...</div>
-            <div v-else-if="similarMessage" class="similar-message">{{ similarMessage }}</div>
-            <div v-if="!similarLoading && !filteredSimilarGroups.length" class="empty-gallery">
-              暂缓区没有匹配当前条件的相似图片
-            </div>
-            <section v-for="group in filteredSimilarGroups" :key="group.id" class="similar-group">
-              <div class="similar-group-header">
-                <div>
-                  <h3>相似组 {{ group.label }}</h3>
-                  <p>{{ group.items.length }} 张候选，与代表图最低相似度 {{ formatPercent(group.similarity) }}</p>
-                </div>
-              </div>
-              <div class="staging-grid">
-                <article
-                  v-for="(item, index) in group.items"
-                  :key="item.id"
-                  class="staging-card"
-                  :class="{
-                    'staging-card-selected': isStagedSelected(item.id),
-                    'notion-gallery-card-active-dropdown': activeCardMenu === stagedMenuKey(item.id),
-                    'submenu-open-right': isFirstStagingColumn(index),
-                  }"
-                >
-                  <button
-                    class="staging-select-toggle"
-                    :class="{ checked: isStagedSelected(item.id) }"
-                    @click.stop="toggleStagedSelection(item.id)"
-                    :title="isStagedSelected(item.id) ? '取消选择' : '选择图片'"
-                    :aria-pressed="isStagedSelected(item.id)"
-                    :aria-label="isStagedSelected(item.id) ? `取消选择，第 ${getStagedSelectionIndex(item.id)} 张` : '选择图片'"
-                  >{{ getStagedSelectionIndex(item.id) || '' }}</button>
-                  <button class="staging-image-shell" @click="openImage(getStagedImageUrl(item.id))" title="打开原图">
-                    <AuthenticatedImage
-                      class="staging-image"
-                      :src="getStagedImageUrl(item.id)"
-                      :alt="item.originalName || item.filename"
-                      loading="lazy"
-                    />
-                  </button>
-
-                  <div class="staging-card-body">
-                    <div class="gallery-card-footer-row">
-                      <div class="staging-title" :title="item.originalName || item.filename">
-                        {{ item.originalName || item.filename }}
-                      </div>
-                      <div class="gallery-card-menu-container">
-                        <button class="gallery-card-menu-btn" @click.stop="toggleCardMenu(stagedMenuKey(item.id))" title="更多操作">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                            <circle cx="12" cy="12" r="1.5"></circle>
-                            <circle cx="19" cy="12" r="1.5"></circle>
-                            <circle cx="5" cy="12" r="1.5"></circle>
-                          </svg>
-                        </button>
-                        <div class="gallery-card-menu-dropdown" v-show="activeCardMenu === stagedMenuKey(item.id)" @click.stop>
-                          <div v-if="collections.length" class="gallery-card-submenu-trigger">
-                            <span>移动至表情包</span>
-                            <div class="gallery-card-submenu">
-                              <button
-                                v-for="collection in collections"
-                                :key="collection.name"
-                                :disabled="stagingBusyId === item.id"
-                                @click="promoteStagedImage(item, collection.name); closeCardMenu()"
-                              >
-                                {{ collection.name }}
-                              </button>
-                            </div>
-                          </div>
-                          <button
-                            class="danger"
-                            :disabled="stagingBusyId === item.id"
-                            @click="deleteStagedImage(item); closeCardMenu()"
-                          >
-                            删除
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="staging-meta-grid">
-                      <span :title="item.reason || '暂缓候选'">{{ item.reason || '暂缓候选' }}</span>
-                      <span>{{ item.source || 'filter' }}</span>
-                      <span>{{ formatSize(item.size) }}</span>
-                      <span>{{ formatDate(item.createdAt) }}</span>
-                    </div>
-                  </div>
-                </article>
-              </div>
-            </section>
-          </div>
-
-          <div v-else-if="!filteredStagedImages.length" class="empty-gallery">
-            没有匹配当前搜索条件的暂缓图片
-          </div>
-
-          <div v-else>
-            <div v-if="selectedStagedIds.size" class="staging-batch-toolbar">
-              <div class="bulk-status">
-                <span class="bulk-title">暂缓区</span>
-                <span class="bulk-meta">已选择 {{ selectedStagedIds.size }} 张</span>
-              </div>
-              <div class="bulk-actions">
-                <button @click="toggleSelectAllStaged" class="toolbar-btn compact">
-                  {{ areAllCurrentPageStagedSelected ? '取消全选' : '全选当前' }}
-                </button>
-                <button @click="clearSelectedStaged" class="toolbar-btn compact">
-                  清空选择
-                </button>
-                <button @click="batchDeleteStagedImages" class="toolbar-btn compact danger">
-                  批量删除
-                </button>
-              </div>
-            </div>
-
-            <div ref="stagingGridEl" class="staging-grid">
-              <article
-                v-for="(item, index) in filteredStagedImages"
-                :key="item.id"
-                class="staging-card"
-                :class="{
-                  'staging-card-selected': isStagedSelected(item.id),
-                  'notion-gallery-card-active-dropdown': activeCardMenu === stagedMenuKey(item.id),
-                  'submenu-open-right': isFirstStagingColumn(index),
-                }"
-              >
-                <button
-                  class="staging-select-toggle"
-                  :class="{ checked: isStagedSelected(item.id) }"
-                  @click.stop="toggleStagedSelection(item.id)"
-                  :title="isStagedSelected(item.id) ? '取消选择' : '选择图片'"
-                  :aria-pressed="isStagedSelected(item.id)"
-                  :aria-label="isStagedSelected(item.id) ? `取消选择，第 ${getStagedSelectionIndex(item.id)} 张` : '选择图片'"
-                >{{ getStagedSelectionIndex(item.id) || '' }}</button>
-                <button class="staging-image-shell" @click="openImage(getStagedImageUrl(item.id))" title="打开原图">
-                  <AuthenticatedImage
-                    class="staging-image"
-                    :src="getStagedImageUrl(item.id)"
-                    :alt="item.originalName || item.filename"
-                    loading="lazy"
-                  />
-                </button>
-
-                <div class="staging-card-body">
-                  <div class="gallery-card-footer-row">
-                    <div class="staging-title" :title="item.originalName || item.filename">
-                      {{ item.originalName || item.filename }}
-                    </div>
-                    <div class="gallery-card-menu-container">
-                      <button class="gallery-card-menu-btn" @click.stop="toggleCardMenu(stagedMenuKey(item.id))" title="更多操作">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                          <circle cx="12" cy="12" r="1.5"></circle>
-                          <circle cx="19" cy="12" r="1.5"></circle>
-                          <circle cx="5" cy="12" r="1.5"></circle>
-                        </svg>
-                      </button>
-                      <div class="gallery-card-menu-dropdown" v-show="activeCardMenu === stagedMenuKey(item.id)" @click.stop>
-                        <div v-if="collections.length" class="gallery-card-submenu-trigger">
-                          <span>移动至表情包</span>
-                          <div class="gallery-card-submenu">
-                            <button
-                              v-for="collection in collections"
-                              :key="collection.name"
-                              :disabled="stagingBusyId === item.id"
-                              @click="promoteStagedImage(item, collection.name); closeCardMenu()"
-                            >
-                              {{ collection.name }}
-                            </button>
-                          </div>
-                        </div>
-                        <button
-                          class="danger"
-                          :disabled="stagingBusyId === item.id"
-                          @click="deleteStagedImage(item); closeCardMenu()"
-                        >
-                          删除
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div class="staging-meta-grid">
-                    <span :title="item.reason || '暂缓候选'">{{ item.reason || '暂缓候选' }}</span>
-                    <span>{{ item.source || 'filter' }}</span>
-                    <span>{{ formatSize(item.size) }}</span>
-                    <span>{{ formatDate(item.createdAt) }}</span>
-                  </div>
-                </div>
-              </article>
-            </div>
-          </div>
+  <section class="ml-view">
+    <header class="ml-view-head">
+      <div class="ml-view-title">
+        <h1 class="ml-title">暂缓区</h1>
+        <div class="ml-actions">
+          <button type="button" class="ml-btn" @click="refreshStagedImages"><Icon name="refresh" />刷新</button>
+          <button v-if="stagedImages.length" type="button" class="ml-btn is-danger-soft" @click="confirmDeleteAllStagedImages"><Icon name="trash" />全部清空</button>
         </div>
+      </div>
+      <p class="ml-subtitle">群聊里自动收集的高频图片，以及上传时被拦下的超大图片，会先放在这里。<br />归档到表情包后才会被使用，不需要的直接删除。</p>
+    </header>
+
+    <div class="ml-callout" :class="{ 'is-info': autoCollect?.enabled }">
+      <Icon name="info" />
+      <span v-if="!autoCollect">正在读取自动收集配置…</span>
+      <span v-else-if="autoCollect.enabled">
+        自动收集已开启：同一个群 {{ autoCollect.windowMinutes }} 分钟内同一张图出现 {{ autoCollect.threshold }} 次就会收进来。<br />
+        只收集 {{ autoCollect.minSizeKB }} KB ~ {{ autoCollect.maxSizeMB }} MB 的图片，每群每天最多 {{ autoCollect.dailyLimit }} 张；已在表情包或暂缓区里的图片不会重复收集。
+      </span>
+      <span v-else>
+        自动收集未开启，群聊里的图片不会进入暂缓区。<br />
+        目前只有一种情况会进来：在管理页上传图片时，超过 10 MB 的会先放在这里等你确认。<br />
+        想收集群聊里的高频表情，请在插件配置中打开「自动暂存配置 → autoCollect」。
+      </span>
+    </div>
+
+    <div v-if="!stagedImages.length" class="ml-empty">
+      <div class="ml-empty-icon">
+        <Icon name="inbox" />
+      </div>
+      <h3>暂缓区是空的</h3>
+      <p>有新图片进来时会显示在这里。</p>
+    </div>
+
+    <template v-else>
+      <div class="ml-toolbar">
+        <div class="ml-segmented is-filter">
+          <button type="button" :class="{ 'is-active': stagingViewMode === 'all' }" @click="setStagingViewMode('all')">
+            全部 <span>{{ filteredStagedImages.length }}</span>
+          </button>
+          <button type="button" :class="{ 'is-active': stagingViewMode === 'similar' }" @click="setStagingViewMode('similar')">
+            按相似分组 <span>{{ similarLoading ? '…' : filteredSimilarGroups.length }}</span>
+          </button>
+        </div>
+        <label class="ml-search">
+          <Icon name="search" />
+          <input v-model="stagingSearch" placeholder="搜索文件名、来源或原因" />
+        </label>
+        <div class="ml-toolbar-end is-compact">
+          <button type="button" class="ml-btn" @click="toggleSelectAllStaged">
+            <Icon name="selectAll" />{{ areAllCurrentPageStagedSelected ? '取消全选' : '全选' }}
+          </button>
+        </div>
+      </div>
+
+      <template v-if="stagingViewMode === 'all'">
+        <div v-if="!filteredStagedImages.length" class="ml-empty is-compact">
+          <h3>没有匹配的图片</h3>
+        </div>
+        <div v-else class="ml-image-grid">
+          <StagedCard
+            v-for="item in filteredStagedImages"
+            :key="item.id"
+            v-bind="cardProps(item)"
+            @pick="onPick(item, filteredStagedImages, $event)"
+            @promote="promoteStagedImage(item)"
+            @remove="deleteStagedImage(item)"
+          />
+        </div>
+      </template>
+
+      <template v-else>
+        <div v-if="similarLoading" class="ml-loading is-inline"><div class="ml-spinner is-small"></div><p>正在比对相似图片…</p></div>
+        <div v-else-if="!filteredSimilarGroups.length" class="ml-empty is-compact">
+          <h3>没有发现相似图片</h3>
+          <p>{{ similarMessage || '每张图都不一样，直接在「全部」里处理即可。' }}</p>
+        </div>
+        <template v-else>
+        <section v-for="group in filteredSimilarGroups" :key="group.id" class="ml-group">
+          <header class="ml-group-head">
+            <div>
+              <h3>相似 {{ group.label }}</h3>
+              <p class="ml-hint">{{ group.items.length }} 张，相似度不低于 {{ formatPercent(group.similarity) }}</p>
+            </div>
+            <div class="ml-actions">
+              <button type="button" class="ml-btn is-small" @click="selectGroup(group)">
+                <Icon name="selectAll" />{{ group.items.every((item) => isStagedSelected(item.id)) ? '取消选择本组' : '选择本组' }}
+              </button>
+              <button type="button" class="ml-btn is-small" @click="keepOneInGroup(group)"><Icon name="keep" />只保留第一张</button>
+            </div>
+          </header>
+          <div class="ml-image-grid">
+            <StagedCard
+              v-for="item in group.items"
+              :key="item.id"
+              v-bind="cardProps(item)"
+              :badge="undefined"
+              @pick="onPick(item, group.items, $event)"
+              @promote="promoteStagedImage(item)"
+              @remove="deleteStagedImage(item)"
+            />
+          </div>
+        </section>
+        </template>
+      </template>
+    </template>
+
+    <SelectionBar :count="selectedStagedIds.size" @clear="clearSelectedStaged">
+      <button type="button" class="ml-bar-btn" @click="toggleSelectAllStaged"><Icon name="selectAll" />{{ areAllCurrentPageStagedSelected ? '取消全选' : '全选' }}</button>
+      <button type="button" class="ml-bar-btn is-primary" @click="batchPromoteStagedImages()"><Icon name="archive" />归档到…</button>
+      <button type="button" class="ml-bar-btn is-danger" @click="batchDeleteStagedImages"><Icon name="trash" />删除</button>
+    </SelectionBar>
+  </section>
 </template>
 <script lang="ts">
-import { defineComponent, ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
-import AuthenticatedImage from '../../shared/AuthenticatedImage.vue'
+import { computed, defineComponent } from 'vue'
+import StagedCard from './StagedCard.vue'
+import Icon from '../../shared/Icon.vue'
+import SelectionBar from '../../shared/SelectionBar.vue'
 import { useDashboardContext } from '../../../composables/dashboardContext'
+import { useSelectionShortcuts, type ClickModifiers } from '../../../utils/selection'
+import type { ConsoleStagedImageInfo } from '../../../../src/console-rpc'
 
 export default defineComponent({
   name: 'StagingView',
-  components: { AuthenticatedImage },
+  components: { StagedCard, Icon, SelectionBar },
   setup() {
     const ctx = useDashboardContext()
-    const stagingGridEl = ref<HTMLElement | null>(null)
-    const stagingColumnCount = ref(1)
+    const autoCollect = computed(() => ctx.settings.value?.autoCollect)
 
-    function stagedMenuKey(id: string) {
-      return `staged:${id}`
-    }
-
-    function updateStagingColumnCount() {
-      const el = stagingGridEl.value
-      if (!el) {
-        stagingColumnCount.value = 1
-        return
+    function cardProps(item: ConsoleStagedImageInfo) {
+      return {
+        item,
+        src: ctx.getStagedImageUrl(item.id),
+        selected: ctx.isStagedSelected(item.id),
+        selecting: ctx.selectedStagedIds.value.size > 0,
+        index: ctx.getStagedSelectionIndex(item.id),
+        busy: ctx.stagingBusyId.value === item.id,
+        badge: ctx.getSimilarBadge(item.id),
+        source: ctx.humanizeSource(item.source),
+        size: ctx.formatSize(item.size),
+        date: ctx.formatDate(item.createdAt),
       }
-      const styles = getComputedStyle(el)
-      const cols = styles.gridTemplateColumns
-        .split(' ')
-        .map((part) => part.trim())
-        .filter(Boolean)
-      stagingColumnCount.value = Math.max(1, cols.length || 1)
     }
 
-    function isFirstStagingColumn(index: number): boolean {
-      return index % stagingColumnCount.value === 0
+    function onPick(item: ConsoleStagedImageInfo, list: ConsoleStagedImageInfo[], event: ClickModifiers) {
+      ctx.handleStagedClick(item, list.map((entry) => entry.id), event, () => ctx.openImage(ctx.getStagedImageUrl(item.id)))
     }
 
-    let resizeObserver: ResizeObserver | null = null
-
-    onMounted(() => {
-      nextTick(updateStagingColumnCount)
-      if (typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(() => updateStagingColumnCount())
-        if (stagingGridEl.value) resizeObserver.observe(stagingGridEl.value)
-      }
-      window.addEventListener('resize', updateStagingColumnCount)
+    useSelectionShortcuts({
+      selectAll: ctx.selectAllStaged,
+      clear: () => {
+        if (!ctx.selectedStagedIds.value.size) return false
+        ctx.clearSelectedStaged()
+        return true
+      },
     })
 
-    onUnmounted(() => {
-      resizeObserver?.disconnect()
-      window.removeEventListener('resize', updateStagingColumnCount)
-    })
-
-    watch(
-      () => [ctx.filteredStagedImages.value.length, ctx.stagingViewMode.value],
-      () => nextTick(updateStagingColumnCount),
-    )
-
-    return Object.assign({}, ctx, {
-      stagingGridEl,
-      stagedMenuKey,
-      isFirstStagingColumn,
-    })
+    return { ...ctx, autoCollect, cardProps, onPick }
   },
 })
 </script>

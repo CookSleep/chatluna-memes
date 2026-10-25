@@ -1,43 +1,37 @@
 <template>
-      <div v-if="!currentCollection" class="notion-view-switcher">
-        <button
-          @click="switchMainMenu('resources')"
-          :class="['switcher-btn', activeMenu === 'resources' ? 'active' : '']"
-        >
-          <span class="switcher-icon">📦</span>
-          <span class="switcher-label">表情包管理</span>
-        </button>
-        <button
-          @click="switchMainMenu('distribution')"
-          :class="['switcher-btn', activeMenu === 'distribution' ? 'active' : '']"
-        >
-          <span class="switcher-icon">🌐</span>
-          <span class="switcher-label">分发管理</span>
-        </button>
-        <button
-          @click="switchMainMenu('staging')"
-          :class="['switcher-btn', activeMenu === 'staging' ? 'active' : '']"
-        >
-          <span class="switcher-icon">🕓</span>
-          <span class="switcher-label">暂缓区</span>
-        </button>
-        <button
-          @click="switchMainMenu('settings')"
-          :class="['switcher-btn', activeMenu === 'settings' ? 'active' : '']"
-        >
-          <span class="switcher-icon">👁️</span>
-          <span class="switcher-label">预览</span>
-        </button>
-      </div>
+  <div class="ml-tabs" role="tablist">
+    <button
+      v-for="tab in tabs"
+      :key="tab.key"
+      type="button"
+      role="tab"
+      :aria-selected="activeMenu === tab.key"
+      :class="['ml-tab', { 'is-active': activeMenu === tab.key }]"
+      @click="switchMainMenu(tab.key)"
+    >
+      <Icon :name="tab.icon" />
+      <span>{{ tab.label }}</span>
+      <span v-if="tab.count !== undefined" class="ml-tab-count" :class="{ 'is-alert': tab.alert }">{{ tab.count }}</span>
+    </button>
+  </div>
 </template>
 <script lang="ts">
-import { defineComponent } from 'vue'
+import { computed, defineComponent } from 'vue'
 import { useDashboardContext } from '../../composables/dashboardContext'
+import Icon from '../shared/Icon.vue'
 
 export default defineComponent({
   name: 'MenuSwitcher',
+  components: { Icon },
   setup() {
-    return useDashboardContext()
+    const ctx = useDashboardContext()
+    const tabs = computed(() => [
+      { key: 'resources' as const, label: '表情包', count: ctx.collections.value.length, icon: 'smile' as const },
+      { key: 'distribution' as const, label: '外部图源', count: ctx.endpoints.value.length, icon: 'link' as const },
+      { key: 'staging' as const, label: '暂缓区', count: ctx.stagedImages.value.length, alert: ctx.stagedImages.value.length > 0, icon: 'inbox' as const },
+      { key: 'settings' as const, label: '预览', count: undefined, alert: false, icon: 'eye' as const },
+    ])
+    return { ...ctx, tabs }
   },
 })
 </script>

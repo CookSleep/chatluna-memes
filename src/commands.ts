@@ -53,14 +53,13 @@ export function registerCommands(ctx: Context, config: Config) {
       return `检查表情包失败: ${(err as Error).message}`
     }
 
-    let imageUrls: string[] = []
-    if (session.quote) {
-      const images = h.select(session.quote.content, 'image')
-      imageUrls = images.map((img) => img.attrs.url || img.attrs.src).filter(Boolean)
-    } else {
-      const images = h.select(session.elements || [], 'image')
-      imageUrls = images.map((img) => img.attrs.url || img.attrs.src).filter(Boolean)
-    }
+    // OneBot 等适配器产出 img 元素，部分适配器仍使用 image，两者都要选。
+    const source = session.quote
+      ? (session.quote.elements ?? h.parse(session.quote.content || ''))
+      : (session.elements || [])
+    const imageUrls: string[] = [...h.select(source, 'img'), ...h.select(source, 'image')]
+      .map((img) => img.attrs.url || img.attrs.src)
+      .filter(Boolean)
 
     if (!imageUrls.length) {
       return '没有找到要偷的图片。请引用包含图片的聊天记录，或者在发送图片的同时回复 "偷了 [表情包名称]"'

@@ -63,24 +63,29 @@ describe('Dashboard 分页及标注交互', () => {
     expect(dashboard.toast.message).toContain('成功 1 张，失败 1 张')
     expect(dashboard.imageTagsCache.value['collection/b.png']).toBeUndefined()
   })
-  it('连续编辑串行保存，旧响应不覆盖新修改', async () => {
+  it('标注改为手动保存：编辑不发请求，保存时带上未回车的输入，保存中重复点击不重复提交', async () => {
     let finish: (value: any) => void
-    mocks.send.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
-      .mockResolvedValueOnce({ ok: true, tags: ['第一', '第二'], aliases: [] })
+    mocks.send.mockResolvedValueOnce({ ok: true, tags: ['原有'], aliases: [] })
     const dashboard = useDashboard()
-    dashboard.tagEditorCollection.value = 'collection'
-    dashboard.tagEditorImage.value = 'a.png'
-    dashboard.tagEditorTags.value = ['第一']
-    const first = dashboard.saveTagEditor()
-    await Promise.resolve()
-    dashboard.tagEditorTags.value = ['第一', '第二']
-    const second = dashboard.saveTagEditor()
+    await dashboard.openTagEditor('collection', 'a.png')
+    expect(dashboard.tagEditorDirty.value).toBe(false)
+
+    dashboard.tagEditorInput.value = '新增'
+    dashboard.addTagFromEditor()
+    dashboard.aliasEditorInput.value = '没按回车的别名'
+    expect(dashboard.tagEditorDirty.value).toBe(true)
     expect(mocks.send).toHaveBeenCalledTimes(1)
-    finish!({ ok: true, tags: ['第一'], aliases: [] })
-    await first
-    await second
-    expect(dashboard.tagEditorTags.value).toEqual(['第一', '第二'])
+
+    mocks.send.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve }))
+    const saving = dashboard.saveTagEditor()
+    void dashboard.saveTagEditor()
+    expect(mocks.send).toHaveBeenCalledTimes(2)
+    expect(mocks.send).toHaveBeenLastCalledWith('memesluna/updateImageMetadata', expect.objectContaining({
+      tags: ['原有', '新增'], aliases: ['没按回车的别名'],
+    }))
+    finish!({ ok: true, tags: ['原有', '新增'], aliases: ['没按回车的别名'] })
+    await saving
+    expect(dashboard.tagEditorVisible.value).toBe(false)
     expect(dashboard.tagEditorSaving.value).toBe(false)
-    expect(mocks.send).toHaveBeenLastCalledWith('memesluna/updateImageMetadata', expect.objectContaining({ tags: ['第一', '第二'] }))
   })
 })

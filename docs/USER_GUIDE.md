@@ -3,14 +3,14 @@
 [![npm](https://img.shields.io/npm/v/koishi-plugin-memesluna?style=flat-square)](https://www.npmjs.com/package/koishi-plugin-memesluna)
 [![License](https://img.shields.io/github/license/lumia1998/koishi-plugin-memesluna?style=flat-square)](https://github.com/lumia1998/koishi-plugin-memesluna/blob/main/LICENSE)
 
-MemesLuna 是一个用于 Koishi 的表情图片路由与管理插件。它可以把本地表情包、外部图片端点和 ChatLuna 提示词变量连接起来，让机器人按固定路由发送表情图，并支持 AI 自动语义标注。
+MemesLuna 是一个用于 Koishi 的表情图片路由与管理插件。它可以把本地表情包、外部随机图片 API（外部图源）和 ChatLuna 提示词变量连接起来，让机器人按固定路由发送表情图，并支持 AI 自动语义标注。
 
 ## 功能特性
 
 ### 核心功能
 
 - 📦 **表情包合集管理**：支持本地图片、外链图片、描述、移动、删除和批量上传
-- 🌐 **端点转发**：将自定义路由 302 重定向到外部图片 API
+- 🌐 **外部图源**：将自定义路由 302 跳转到外部随机图片 API
 - 🎨 **Console 管理页**：在 Koishi 控制台中可视化管理所有资源
 - 🤖 **ChatLuna 变量注入**：注入 `{endpoint}` 和 `{memesluna}`，让 AI 知道可用图片路由
 - 🔍 **跨合集语义搜索**：支持 `/memesluna?q=关键词` 按别名、标签或文件名检索
@@ -118,7 +118,7 @@ injectVariablesPrompt: |
 | `autoCollect` | boolean | `false` | 启用高频图片自动暂存 |
 | `emojiFrequencyWindowMinutes` | number | `10` | 统计时间窗口（分钟） |
 | `emojiFrequencyThreshold` | number | `3` | 触发暂存所需出现次数 |
-| `minEmojiSize` | number | `50` | 最小图片大小（KB） |
+| `minEmojiSize` | number | `4` | 最小图片大小（KB），QQ 表情多在 5~40 KB |
 | `maxEmojiSize` | number | `15` | 最大图片大小（MB） |
 | `groupAutoCollectLimit` | number | `300` | 每群每日暂存上限 |
 
@@ -172,14 +172,14 @@ plugins:
    - 编辑图片标签和别名
    - 批量标注（AI）
 
-2. **分发管理**
-   - 新建/编辑/删除端点
-   - 配置 302 重定向规则
+2. **外部图源**
+   - 添加、编辑、删除外部随机图片 API
+   - 保存前可以「试一下」，在浏览器里预览一张
 
 3. **暂缓区**
-   - 查看自动收集的候选图片
-   - 归档到指定合集
-   - 批量删除
+   - 查看自动收集或上传时被拦下的图片
+   - 每张图片可直接归档到表情包或删除，也支持多选批量处理
+   - 相似图片自动标记，可按组查看、只保留一张
 
 4. **预览**
    - 查看当前路由清单

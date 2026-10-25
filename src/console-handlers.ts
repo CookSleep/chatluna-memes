@@ -57,6 +57,20 @@ export function applyConsole(ctx: Context, config: Config, service: MemesLunaSer
         endpoints,
         collections: detailedCollections.filter(Boolean),
         stagedImages,
+        settings: {
+          injectVariables: !!config.injectVariables,
+          annotatorReady: !!service.annotator,
+          stagingRetentionDays: config.stagingRetentionDays || 0,
+          // 与 auto-collect.ts 中的默认值保持一致。
+          autoCollect: {
+            enabled: !!config.autoCollect,
+            windowMinutes: Math.max(1, config.emojiFrequencyWindowMinutes || 10),
+            threshold: Math.max(1, config.emojiFrequencyThreshold || 3),
+            minSizeKB: Math.max(0, config.minEmojiSize ?? 4),
+            maxSizeMB: Math.max(1, config.maxEmojiSize || 15),
+            dailyLimit: Math.max(1, config.groupAutoCollectLimit || 300),
+          },
+        },
       }
     })
   )
@@ -79,6 +93,13 @@ export function applyConsole(ctx: Context, config: Config, service: MemesLunaSer
     'memesluna/setCollectionDescription',
     withReady(async (name: string, description: string) => {
       return await service.setCollectionDescription(name, description)
+    })
+  )
+
+  addListener(
+    'memesluna/renameCollection',
+    withReady(async (name: string, newName: string) => {
+      return await service.renameCollection(name, newName)
     })
   )
 
@@ -183,13 +204,19 @@ export function applyConsole(ctx: Context, config: Config, service: MemesLunaSer
 
   addListener(
     'memesluna/annotateImage',
-    withReady(async (collectionName: string, filename: string) => {
+    withReady(async (collectionName: string, filename: string, options?: { preview?: boolean }) => {
       if (!service.annotator) return { ok: false, error: 'AI 标注器未就绪' }
       const rows = await ctx.database.get('memesluna_images', { collection: collectionName, filename })
       if (!rows.length) return { ok: false, error: '图片不存在' }
+      let preview: { aliases: string[]; tags: string[] } | undefined
       // 手动单张标注不排在后台批量任务之后。
-      const outcome = await service.queueAnnotation(rows, { force: true, immediate: true })
+      const outcome = await service.queueAnnotation(rows, {
+        force: true,
+        immediate: true,
+        onPreview: options?.preview ? (result) => { preview = result } : undefined,
+      })
       if (!outcome.success) return { ok: false, error: 'AI 标注失败或任务已取消' }
+      if (preview) return { ok: true, ...preview }
       const updated = await service.getImageById(rows[0].id)
       if (!updated) return { ok: false, error: '图片已删除' }
       return { ok: true, aliases: parseJsonStringArray(updated.aliases), tags: parseJsonStringArray(updated.tags) }

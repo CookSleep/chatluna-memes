@@ -1,3 +1,5 @@
+import { lookup } from 'dns/promises'
+import { isIP } from 'net'
 import type { Context } from 'koishi'
 import {
   IMAGE_DOWNLOAD_MAX_RETRIES,
@@ -63,6 +65,14 @@ export async function downloadImage(ctx: Context, url: string, maxBytes?: number
   const hostname = parsedUrl.hostname
   if (isPrivateIP(hostname)) {
     throw new Error('Access to private IP addresses is not allowed')
+  }
+  // 域名也要解析后再检查，防止 127.0.0.1.nip.io 之类指向内网的域名。
+  // 注意：HTTP 跳转后的地址仍未逐跳检查。
+  if (!isIP(hostname.replace(/^\[|\]$/g, ''))) {
+    const addresses = await lookup(hostname, { all: true }).catch(() => [])
+    if (addresses.some(({ address }) => isPrivateIP(address))) {
+      throw new Error('Access to private IP addresses is not allowed')
+    }
   }
 
   let lastError: Error | null = null
