@@ -160,37 +160,37 @@ export interface ImageMetadataResult {
   tags?: string[]
 }
 
-export interface MemesLunaConsoleEvents {
-  'memesluna/getState'(): Promise<ConsoleState>
-  'memesluna/getSettings'(): Promise<ConsoleSettingsPayload>
-  'memesluna/updateSettings'(patch: Partial<Settings>): Promise<SettingsPatchResult>
-  'memesluna/createCollection'(name: string): Promise<boolean>
-  'memesluna/deleteCollection'(name: string): Promise<boolean>
-  'memesluna/setCollectionDescription'(name: string, description: string): Promise<boolean>
-  'memesluna/renameCollection'(name: string, newName: string): Promise<boolean>
-  'memesluna/deleteLocalImage'(collectionName: string, filename: string): Promise<boolean>
-  'memesluna/moveLocalImage'(sourceCollection: string, targetCollection: string, filename: string): Promise<string | null>
-  'memesluna/addLinks'(collectionName: string, linksText: string): Promise<number>
-  'memesluna/moveLink'(sourceCollection: string, targetCollection: string, link: string): Promise<boolean>
-  'memesluna/deleteLink'(collectionName: string, link: string): Promise<boolean>
-  'memesluna/createEndpoint'(payload: ConsoleEndpointInput): Promise<string>
-  'memesluna/updateEndpoint'(name: string, payload: ConsoleEndpointInput): Promise<boolean>
-  'memesluna/deleteEndpoint'(name: string): Promise<boolean>
-  'memesluna/getStagedImages'(): Promise<ConsoleStagedImageInfo[]>
-  'memesluna/getSimilarStagedImages'(): Promise<ConsoleSimilarStagedImagesResult>
-  'memesluna/addStagedImage'(payload: AddStagedImagePayload): Promise<ConsoleStagedImageInfo>
-  'memesluna/deleteStagedImage'(id: string): Promise<boolean>
-  'memesluna/promoteStagedImage'(id: string, collectionName: string): Promise<string | null>
-  'memesluna/getBaseUrl'(): Promise<string>
-  'memesluna/deleteAllStagedImages'(): Promise<number>
-  'memesluna/annotateImage'(collectionName: string, filename: string, options?: { preview?: boolean }): Promise<ImageMetadataResult>
-  'memesluna/updateImageMetadata'(payload: ImageMetadataPayload): Promise<ImageMetadataResult>
-  'memesluna/getImageMetadata'(collectionName: string, filename: string): Promise<ImageMetadataResult>
-  'memesluna/getCollectionResources'(collectionName: string, query?: CollectionPageQuery): Promise<CollectionResourcePage>
-  'memesluna/getAnnotationStatus'(): Promise<AnnotationStatus>
-  'memesluna/cancelAnnotations'(): Promise<boolean>
+export interface ChatLunaMemesConsoleEvents {
+  'chatluna-memes/getState'(): Promise<ConsoleState>
+  'chatluna-memes/getSettings'(): Promise<ConsoleSettingsPayload>
+  'chatluna-memes/updateSettings'(patch: Partial<Settings>): Promise<SettingsPatchResult>
+  'chatluna-memes/createCollection'(name: string): Promise<boolean>
+  'chatluna-memes/deleteCollection'(name: string): Promise<boolean>
+  'chatluna-memes/setCollectionDescription'(name: string, description: string): Promise<boolean>
+  'chatluna-memes/renameCollection'(name: string, newName: string): Promise<boolean>
+  'chatluna-memes/deleteLocalImage'(collectionName: string, filename: string): Promise<boolean>
+  'chatluna-memes/moveLocalImage'(sourceCollection: string, targetCollection: string, filename: string): Promise<string | null>
+  'chatluna-memes/addLinks'(collectionName: string, linksText: string): Promise<number>
+  'chatluna-memes/moveLink'(sourceCollection: string, targetCollection: string, link: string): Promise<boolean>
+  'chatluna-memes/deleteLink'(collectionName: string, link: string): Promise<boolean>
+  'chatluna-memes/createEndpoint'(payload: ConsoleEndpointInput): Promise<string>
+  'chatluna-memes/updateEndpoint'(name: string, payload: ConsoleEndpointInput): Promise<boolean>
+  'chatluna-memes/deleteEndpoint'(name: string): Promise<boolean>
+  'chatluna-memes/getStagedImages'(): Promise<ConsoleStagedImageInfo[]>
+  'chatluna-memes/getSimilarStagedImages'(): Promise<ConsoleSimilarStagedImagesResult>
+  'chatluna-memes/addStagedImage'(payload: AddStagedImagePayload): Promise<ConsoleStagedImageInfo>
+  'chatluna-memes/deleteStagedImage'(id: string): Promise<boolean>
+  'chatluna-memes/promoteStagedImage'(id: string, collectionName: string): Promise<string | null>
+  'chatluna-memes/getBaseUrl'(): Promise<string>
+  'chatluna-memes/deleteAllStagedImages'(): Promise<number>
+  'chatluna-memes/annotateImage'(collectionName: string, filename: string, options?: { preview?: boolean }): Promise<ImageMetadataResult>
+  'chatluna-memes/updateImageMetadata'(payload: ImageMetadataPayload): Promise<ImageMetadataResult>
+  'chatluna-memes/getImageMetadata'(collectionName: string, filename: string): Promise<ImageMetadataResult>
+  'chatluna-memes/getCollectionResources'(collectionName: string, query?: CollectionPageQuery): Promise<CollectionResourcePage>
+  'chatluna-memes/getAnnotationStatus'(): Promise<AnnotationStatus>
+  'chatluna-memes/cancelAnnotations'(): Promise<boolean>
 }
 
 declare module '@koishijs/plugin-console' {
-  interface Events extends MemesLunaConsoleEvents {}
+  interface Events extends ChatLunaMemesConsoleEvents {}
 }

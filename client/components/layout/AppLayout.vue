@@ -1,12 +1,12 @@
 <template>
-  <k-layout main="ml-page" class="ml-theme memesluna-app-layout">
+  <k-layout main="cm-page" class="cm-theme chatluna-memes-app-layout">
     <template #header>
       <AppHeader />
     </template>
 
-    <div class="ml-progress" :class="{ 'is-active': loading && initialized }"></div>
-    <el-scrollbar class="ml-scroll">
-      <div class="ml-container">
+    <div class="cm-progress" :class="{ 'is-active': loading && initialized }"></div>
+    <el-scrollbar class="cm-scroll">
+      <div class="cm-container">
         <LoadingSpinner v-if="!initialized" />
         <template v-else>
           <MenuSwitcher v-if="!currentCollection" />
@@ -14,7 +14,7 @@
           <CollectionsView v-else-if="activeMenu === 'resources'" />
           <EndpointsView v-else-if="activeMenu === 'distribution'" />
           <StagingView v-else-if="activeMenu === 'staging'" />
-          <PreviewView v-else-if="activeMenu === 'settings'" />
+          <PreviewView v-else-if="activeMenu === 'preview'" />
         </template>
       </div>
     </el-scrollbar>

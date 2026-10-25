@@ -76,7 +76,7 @@ function normalizeAnnotationList(value: unknown, maxItems: number, maxLength: nu
 
 async function compressImageForAI(buffer: Buffer): Promise<{ buffer: Buffer; mimeType: string }> {
     const originalMime = getImageMimeFromBytes(buffer)
-    // If it's already small and not a GIF, do not compress
+    // GIF 不论大小都转成 JPEG 再发送。
     if (buffer.length < AI_IMAGE_COMPRESSION_THRESHOLD && originalMime !== 'image/gif') {
         return { buffer, mimeType: originalMime }
     }
@@ -89,8 +89,8 @@ async function compressImageForAI(buffer: Buffer): Promise<{ buffer: Buffer; mim
                 .jpeg({ quality: AI_IMAGE_JPEG_QUALITY })
                 .toBuffer()
             return { buffer: compressed, mimeType: 'image/jpeg' }
-        } catch (err) {
-            // fallback
+        } catch {
+            // sharp 不可用时改用 photon。
         }
     }
 
@@ -146,9 +146,6 @@ export class AIAnnotator {
         return this._model
     }
 
-    /**
-     * 获取 AI 使用统计
-     */
     getUsageStats() {
         return this.usageTracker.getStats()
     }
@@ -197,7 +194,6 @@ export class AIAnnotator {
         const signal = this.cancellation.signal
         if (signal.aborted) return null
 
-        // 替换 prompt 模板中的上下文变量
         let prompt = this.config.annotatePrompt
 
         if (context) {
@@ -209,7 +205,6 @@ export class AIAnnotator {
 
         const humanText = '请为这张表情包生成标注。'
 
-        // 预压缩图片以减小 API 负载并解决大图报错问题
         const compressed = await compressImageForAI(buffer)
 
         for (let attempt = 0; attempt < this.config.aiMaxAttempts; attempt++) {

@@ -1,5 +1,5 @@
 import { computed, reactive, ref, type Ref } from 'vue'
-import { sendMemesLuna } from './rpc'
+import { sendChatLunaMemes } from './rpc'
 import type { ShowToast } from './useToast'
 import type { DialogOptions } from './useDialog'
 import type { ConsoleEndpointInfo as EndpointInfo, ConsoleEndpointInput } from '../../src/console-rpc'
@@ -104,10 +104,10 @@ export function useEndpoints({ loading, showToast, confirmDialog, fetchState, va
           message: `访问地址会变成 ${getBaseRedirectUrl(name)}，\n旧地址将无法访问，用到旧地址的地方需要一起改。`,
           confirmText: '改名并保存',
         })) return
-        await sendMemesLuna('memesluna/updateEndpoint', oldName, payload)
+        await sendChatLunaMemes('chatluna-memes/updateEndpoint', oldName, payload)
         showToast('已保存图源', 'success')
       } else {
-        await sendMemesLuna('memesluna/createEndpoint', payload)
+        await sendChatLunaMemes('chatluna-memes/createEndpoint', payload)
         showToast('已添加图源', 'success')
       }
       await fetchState()
@@ -125,7 +125,7 @@ export function useEndpoints({ loading, showToast, confirmDialog, fetchState, va
 
     try {
       loading.value = true
-      await sendMemesLuna('memesluna/deleteEndpoint', name)
+      await sendChatLunaMemes('chatluna-memes/deleteEndpoint', name)
       showToast('已删除图源', 'success')
       await fetchState()
       if (editingEndpoint.value && editingEndpoint.value.name === name) {

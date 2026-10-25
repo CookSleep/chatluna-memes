@@ -1,5 +1,5 @@
 import { computed, ref, type Ref, type ComputedRef } from 'vue'
-import { sendMemesLuna } from './rpc'
+import { sendChatLunaMemes } from './rpc'
 import { settledBatch } from './batch'
 import type { ShowToast } from './useToast'
 import type { DialogOptions } from './useDialog'
@@ -91,7 +91,7 @@ export function useMetadataEditor({ currentCollection, selectedImages, selectedI
 
     try {
       const results = await settledBatch(filenames, async (filename) => {
-        const result = await sendMemesLuna('memesluna/updateImageMetadata', {
+        const result = await sendChatLunaMemes('chatluna-memes/updateImageMetadata', {
           collectionName, filename, tags, aliases, mode,
         })
         if (!result?.ok) throw new Error(result?.error || '标注保存失败')
@@ -135,7 +135,7 @@ export function useMetadataEditor({ currentCollection, selectedImages, selectedI
     let tags: string[] = []
     let aliases: string[] = []
     try {
-      const result = await sendMemesLuna('memesluna/getImageMetadata', collection, filename)
+      const result = await sendChatLunaMemes('chatluna-memes/getImageMetadata', collection, filename)
       if (generation !== tagEditorLoad) return
       if (result?.ok) {
         tags = result.tags || []
@@ -178,7 +178,7 @@ export function useMetadataEditor({ currentCollection, selectedImages, selectedI
     aiAnnotating.value = true
     const generation = tagEditorLoad
     try {
-      const result = await sendMemesLuna('memesluna/annotateImage', tagEditorCollection.value, tagEditorImage.value, { preview: true })
+      const result = await sendChatLunaMemes('chatluna-memes/annotateImage', tagEditorCollection.value, tagEditorImage.value, { preview: true })
       if (generation !== tagEditorLoad) return
       if (result?.ok) {
         tagEditorTags.value = result.tags || []
@@ -203,7 +203,7 @@ export function useMetadataEditor({ currentCollection, selectedImages, selectedI
     const filename = tagEditorImage.value
     tagEditorSaving.value = true
     try {
-      const result = await sendMemesLuna('memesluna/updateImageMetadata', {
+      const result = await sendChatLunaMemes('chatluna-memes/updateImageMetadata', {
         collectionName: collection, filename, tags: [...tagEditorTags.value], aliases: [...tagEditorAliases.value],
       })
       if (!result?.ok) throw new Error(result?.error || '标注保存失败')

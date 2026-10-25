@@ -1,17 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { applySettingsPatch, DEFAULT_SETTINGS, diffFromDefaults, migrateLegacyConfig, resolveSettings } from '../src/settings'
+import { applySettingsPatch, DEFAULT_SETTINGS, diffFromDefaults, resolveSettings } from '../src/settings'
 
 describe('settings', () => {
-  it('migrates legacy koishi.yml config', () => {
-    const settings = migrateLegacyConfig({ injectVariables: false, aiRequestTimeoutMs: 30000, aiBackoffBase: 5000, maxEmojiSize: 80, backendPath: 'memes/' })
-    expect(settings.injectVariables).toBe(false)
-    expect(settings.aiRequestTimeout).toBe(30)
-    expect(settings.maxEmojiSize).toBe(50)
-    expect(settings.backendPath).toBe('/memes')
-    expect(settings.aiRetryDelay).toBe(5)
-    expect(settings).not.toHaveProperty('aiBackoffBase')
-  })
-
   it('falls back to defaults for invalid saved values', () => {
     const settings = resolveSettings({ autoCollect: 'yes', similarityThreshold: 2, annotatePrompt: '  ', selfUrl: 'ftp://x' })
     expect(settings.autoCollect).toBe(false)
@@ -21,10 +11,9 @@ describe('settings', () => {
   })
 
   it('keeps customized prompts', () => {
-    const legacyStart = '你是"二次元表情检索标注助手"'
-    const saved = resolveSettings({ annotatePrompt: `${legacyStart}。自定义`, injectVariablesPrompt: '自定义模板 {endpoint}' })
-    expect(saved.annotatePrompt).toBe(`${legacyStart}。自定义`)
-    expect(saved.injectVariablesPrompt).toBe('自定义模板 {endpoint}')
+    const saved = resolveSettings({ annotatePrompt: '自定义标注', injectVariablesPrompt: '自定义模板 {chatluna_memes_list}' })
+    expect(saved.annotatePrompt).toBe('自定义标注')
+    expect(saved.injectVariablesPrompt).toBe('自定义模板 {chatluna_memes_list}')
   })
 
   it('resets min size when it is not below max size', () => {
@@ -55,14 +44,5 @@ describe('settings', () => {
     const result = applySettingsPatch(DEFAULT_SETTINGS, patch)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toContain(message)
-  })
-})
-
-describe('legacy default prompts', () => {
-  it('upgrades the previous built-in prompts', async () => {
-    const old = await import('./fixtures/old-settings')
-    const settings = resolveSettings({ annotatePrompt: old.DEFAULT_ANNOTATE_PROMPT, injectVariablesPrompt: old.DEFAULT_INJECT_PROMPT })
-    expect(settings.annotatePrompt).toBe(DEFAULT_SETTINGS.annotatePrompt)
-    expect(settings.injectVariablesPrompt).toBe(DEFAULT_SETTINGS.injectVariablesPrompt)
   })
 })

@@ -1,153 +1,50 @@
-/**
- * MemesLuna 插件常量定义
- */
-
-// ==================== 搜索相关 ====================
-
-/**
- * 语义搜索评分阈值
- * 至少需要一次强相关命中才能进入候选
- */
+/** 至少需要一次强相关命中（短语命中别名或标签、分词命中别名或标签）才进入候选。 */
 export const SEARCH_SCORE_THRESHOLD = 6
 
-/**
- * 超过此数量时启用倒排索引候选过滤（正确性保持：bigram + 全文 token）
- */
+/** 图片数超过此值时先用倒排索引筛候选，再对候选完整评分。 */
 export const SEARCH_INVERTED_INDEX_THRESHOLD = 500
 
-/**
- * 搜索评分规则
- */
 export const SEARCH_SCORING = {
-  /** 完整短语命中 aliases */
   PHRASE_ALIAS: 12,
-  /** 完整短语命中 tags */
   PHRASE_TAG: 8,
-  /** 完整短语命中文件名 */
   PHRASE_FILENAME: 4,
-  /** 分词命中 aliases */
   TERM_ALIAS: 6,
-  /** 分词命中 tags */
   TERM_TAG: 6,
-  /** 分词命中文件名 */
   TERM_FILENAME: 2,
-  /** 命中词数不少于 2 个的额外分 */
   BONUS_TWO_TERMS: 2,
-  /** 命中词数不少于 3 个的额外分 */
   BONUS_THREE_TERMS: 2,
 } as const
 
-// ==================== 缓存相关 ====================
-
-/**
- * 全表图片缓存 TTL（毫秒）
- * 平衡性能和数据新鲜度，5 分钟内的跨合集搜索共享缓存
- */
+/** 跨表情包搜索共享的全表缓存有效期，写操作后会主动失效。 */
 export const ALL_IMAGES_CACHE_TTL = 5 * 60 * 1000
 
-// ==================== 自动收集相关 ====================
-
-/**
- * 自动收集频率跟踪器最大条目数
- * 防止内存泄漏，超过此值会清理最老的 25% 条目
- */
+/** 频率记录超过此条数时清理最老的一部分，防止内存无限增长。 */
 export const MAX_FREQUENCY_TRACKER_SIZE = 50000
-
-/**
- * 自动收集频率跟踪器清理比例
- * 达到上限时清理的条目比例
- */
 export const FREQUENCY_TRACKER_CLEANUP_RATIO = 0.25
 
-// ==================== 标注相关 ====================
-
-/**
- * 标注结果最大别名数量
- */
 export const MAX_ALIASES_COUNT = 15
-
-/**
- * 标注结果最大标签数量
- */
 export const MAX_TAGS_COUNT = 5
-
-/**
- * 标注结果单项最大长度
- */
 export const MAX_ANNOTATION_ITEM_LENGTH = 12
 
-/**
- * 元数据别名最大数量
- */
 export const MAX_METADATA_ALIASES = 30
-
-/**
- * 元数据标签最大数量
- */
 export const MAX_METADATA_TAGS = 5
-
-/**
- * 元数据单项最大长度
- */
 export const MAX_METADATA_ITEM_LENGTH = 24
-
-// ==================== 文件处理相关 ====================
 
 export const MAX_IMAGE_BYTES = 50 * 1024 * 1024
 export const MAX_UPLOAD_FILES = 32
 export const MAX_UPLOAD_TOTAL_BYTES = 100 * 1024 * 1024
 
-/**
- * AI 标注图片压缩阈值（字节）
- * 超过此大小的图片会被压缩后再发送给 AI
- */
+/** 超过此大小的图片先压缩再发给模型，减少请求体积并避开大图报错。 */
 export const AI_IMAGE_COMPRESSION_THRESHOLD = 30 * 1024
-
-/**
- * AI 标注图片目标尺寸
- */
 export const AI_IMAGE_TARGET_SIZE = 512
-
-/**
- * AI 标注 JPEG 质量
- */
 export const AI_IMAGE_JPEG_QUALITY = 75
 
-// ==================== 感知哈希相关 ====================
-
-/**
- * 指纹回填并发数
- */
 export const BACKFILL_CONCURRENCY = 4
 
-/**
- * 差分哈希位数
- */
 export const DHASH_BITS = 64
-
-/**
- * 差分哈希计算宽度
- */
 export const DHASH_WIDTH = 9
-
-/**
- * 差分哈希计算高度
- */
 export const DHASH_HEIGHT = 8
 
-// ==================== 下载重试相关 ====================
-
-/**
- * 图片下载最大重试次数
- */
 export const IMAGE_DOWNLOAD_MAX_RETRIES = 3
-
-/**
- * 图片下载超时时间（毫秒）
- */
 export const IMAGE_DOWNLOAD_TIMEOUT = 10000
-
-/**
- * 图片下载重试延迟（毫秒）
- */
 export const IMAGE_DOWNLOAD_RETRY_DELAY = 1000

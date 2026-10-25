@@ -19,7 +19,6 @@ export function getExtFromMagicBytes(buffer: Buffer): string | null {
   return null
 }
 
-/** Default mime when unknown: for AI path use defaultMime; for filename use jpeg default */
 export function getImageMimeFromBytes(buffer: Buffer, defaultMime = 'image/png'): string {
   if (buffer.length >= 4) {
     // GIF: 47 49 46 38 (GIF8)

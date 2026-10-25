@@ -1,5 +1,5 @@
 <template>
-  <label class="ml-number" :class="{ 'is-invalid': !!error, 'is-wide': wide }" :title="error">
+  <label class="cm-number" :class="{ 'is-invalid': !!error, 'is-wide': wide }" :title="error">
     <input
       type="number"
       inputmode="decimal"

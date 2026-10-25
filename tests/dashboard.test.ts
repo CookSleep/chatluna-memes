@@ -27,7 +27,7 @@ const collection: any = { name: 'collection', description: '', totalCount: 50, l
 describe('Dashboard 分页及标注交互', () => {
   it('只加载当前页及其标注，翻页请求新页且保留完整合集数量', async () => {
     mocks.send.mockImplementation(async (event, _name, query) => {
-      if (event !== 'memesluna/getCollectionResources') throw new Error('Unexpected RPC')
+      if (event !== 'chatluna-memes/getCollectionResources') throw new Error('Unexpected RPC')
       return {
         total: 50, offset: query.offset || 0, limit: query.limit,
         items: Array.from({ length: Math.min(query.limit, 50 - (query.offset || 0)) }, (_, index) => ({ id: String(index), type: 'local', filename: `image${(query.offset || 0) + index}.png`, value: '', tags: ['已加载标签'], aliases: ['别名'] })),
@@ -44,11 +44,11 @@ describe('Dashboard 分页及标注交互', () => {
     await vi.advanceTimersByTimeAsync(120)
     expect(dashboard.paginatedGalleryItems.value).toHaveLength(24)
     expect(dashboard.paginatedGalleryItems.value[0].value).toBe('image24.png')
-    expect(mocks.send).toHaveBeenLastCalledWith('memesluna/getCollectionResources', 'collection', expect.objectContaining({ offset: 24, limit: 24 }))
+    expect(mocks.send).toHaveBeenLastCalledWith('chatluna-memes/getCollectionResources', 'collection', expect.objectContaining({ offset: 24, limit: 24 }))
   })
   it('批量追加不依赖本地标注缓存，业务失败项保持选中供重试', async () => {
     mocks.send.mockImplementation(async (event, payload) => {
-      if (event !== 'memesluna/updateImageMetadata') throw new Error('Unexpected RPC')
+      if (event !== 'chatluna-memes/updateImageMetadata') throw new Error('Unexpected RPC')
       return payload.filename === 'b.png' ? { ok: false, error: '图片不存在' } : { ok: true, tags: ['已有标签', '新标签'], aliases: ['已有别名'] }
     })
     const dashboard = useDashboard()
@@ -57,7 +57,7 @@ describe('Dashboard 分页及标注交互', () => {
     dashboard.bulkTagEditorTags.value = ['新标签']
     dashboard.bulkTagOperationMode.value = 'add'
     await dashboard.saveBulkTagEditor()
-    expect(mocks.send).toHaveBeenCalledWith('memesluna/updateImageMetadata', expect.objectContaining({ filename: 'a.png', tags: ['新标签'], mode: 'add' }))
+    expect(mocks.send).toHaveBeenCalledWith('chatluna-memes/updateImageMetadata', expect.objectContaining({ filename: 'a.png', tags: ['新标签'], mode: 'add' }))
     expect(dashboard.selectedImages.value).toEqual(['b.png'])
     expect(dashboard.imageTagsCache.value['collection/a.png']).toEqual(['已有标签', '新标签'])
     expect(dashboard.toast.message).toContain('成功 1 张，失败 1 张')
@@ -80,7 +80,7 @@ describe('Dashboard 分页及标注交互', () => {
     const saving = dashboard.saveTagEditor()
     void dashboard.saveTagEditor()
     expect(mocks.send).toHaveBeenCalledTimes(2)
-    expect(mocks.send).toHaveBeenLastCalledWith('memesluna/updateImageMetadata', expect.objectContaining({
+    expect(mocks.send).toHaveBeenLastCalledWith('chatluna-memes/updateImageMetadata', expect.objectContaining({
       tags: ['原有', '新增'], aliases: ['没按回车的别名'],
     }))
     finish!({ ok: true, tags: ['原有', '新增'], aliases: ['没按回车的别名'] })

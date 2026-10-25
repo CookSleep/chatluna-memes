@@ -1,5 +1,5 @@
 import { computed, ref, type Ref } from 'vue'
-import { sendMemesLuna } from './rpc'
+import { sendChatLunaMemes } from './rpc'
 import { settledBatch } from './batch'
 import { fileToBase64 } from '../utils/format'
 import { applyClickSelection, type ClickModifiers } from '../utils/selection'
@@ -128,7 +128,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
     try {
       loading.value = true
       const results = await settledBatch(ids, async (id) => {
-        if (!await sendMemesLuna('memesluna/deleteStagedImage', id)) throw new Error('删除失败')
+        if (!await sendChatLunaMemes('chatluna-memes/deleteStagedImage', id)) throw new Error('删除失败')
       })
       const failed = ids.filter((_, index) => results[index].status === 'rejected')
       showToast(failed.length ? `已删除 ${ids.length - failed.length} 张，${failed.length} 张失败` : `已删除 ${ids.length} 张`, failed.length ? 'error' : 'success')
@@ -148,7 +148,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
 
     try {
       loading.value = true
-      const deleted = await sendMemesLuna('memesluna/deleteAllStagedImages')
+      const deleted = await sendChatLunaMemes('chatluna-memes/deleteAllStagedImages')
       showToast(`已清空，共删除 ${deleted} 张`, 'success')
       clearSelectedStaged()
       await refreshStagedImages()
@@ -162,7 +162,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
 
   async function refreshStagedImages() {
     try {
-      const list = await sendMemesLuna('memesluna/getStagedImages')
+      const list = await sendChatLunaMemes('chatluna-memes/getStagedImages')
       stagedImages.value = Array.isArray(list) ? list : []
       // 相似分组随列表自动计算，用户不需要先切换模式才能看到或处理。
       if (stagedImages.value.length >= 2) {
@@ -179,7 +179,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
   async function loadSimilarStagedImages() {
     similarLoading.value = true
     try {
-      const result = await sendMemesLuna('memesluna/getSimilarStagedImages')
+      const result = await sendChatLunaMemes('chatluna-memes/getSimilarStagedImages')
       similarGroups.value = Array.isArray(result?.groups) ? result.groups : []
       similarMessage.value = result?.message || ''
 
@@ -216,7 +216,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
     if (!target) return
     stagingBusyId.value = item.id
     try {
-      const filename = await sendMemesLuna('memesluna/promoteStagedImage', item.id, target)
+      const filename = await sendChatLunaMemes('chatluna-memes/promoteStagedImage', item.id, target)
       if (filename) {
         showToast(`已归档到「${target}」`, 'success')
         delete stagingTargetCollection.value[item.id]
@@ -243,7 +243,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
     try {
       loading.value = true
       const results = await settledBatch(ids, async (id) => {
-        if (!await sendMemesLuna('memesluna/promoteStagedImage', id, target)) throw new Error('归档失败')
+        if (!await sendChatLunaMemes('chatluna-memes/promoteStagedImage', id, target)) throw new Error('归档失败')
       }, 2)
       const failed = ids.filter((_, index) => results[index].status === 'rejected')
       const reason = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')?.reason
@@ -267,7 +267,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
     try {
       loading.value = true
       const results = await settledBatch(ids, async (id) => {
-        if (!await sendMemesLuna('memesluna/deleteStagedImage', id)) throw new Error('删除失败')
+        if (!await sendChatLunaMemes('chatluna-memes/deleteStagedImage', id)) throw new Error('删除失败')
       })
       const failed = results.filter((result) => result.status === 'rejected').length
       showToast(failed ? `已删除 ${ids.length - failed} 张，${failed} 张失败` : `已删除 ${ids.length} 张相似图片`, failed ? 'error' : 'success')
@@ -291,7 +291,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
 
     stagingBusyId.value = item.id
     try {
-      const deleted = await sendMemesLuna('memesluna/deleteStagedImage', item.id)
+      const deleted = await sendChatLunaMemes('chatluna-memes/deleteStagedImage', item.id)
       if (deleted) {
         showToast('已删除', 'success')
         delete stagingTargetCollection.value[item.id]
@@ -312,7 +312,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
     for (const item of items) {
       try {
         const base64 = await fileToBase64(item.file)
-        await sendMemesLuna('memesluna/addStagedImage', {
+        await sendChatLunaMemes('chatluna-memes/addStagedImage', {
           base64,
           originalName: item.file.name,
           source: currentCollection.value ? `upload:${currentCollection.value.name}` : 'upload-filter',

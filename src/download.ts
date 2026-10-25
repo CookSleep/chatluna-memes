@@ -15,7 +15,6 @@ export function isPrivateIP(rawHostname: string): boolean {
     hostname = mapped[1] || [parseInt(mapped[2], 16) >> 8, parseInt(mapped[2], 16) & 255, parseInt(mapped[3], 16) >> 8, parseInt(mapped[3], 16) & 255].join('.')
   }
 
-  // IPv4 私有地址检测
   if (/^0\./.test(hostname)) return true // 0.0.0.0/8
   if (/^127\./.test(hostname)) return true // 127.0.0.0/8
   if (/^10\./.test(hostname)) return true // 10.0.0.0/8
@@ -25,7 +24,6 @@ export function isPrivateIP(rawHostname: string): boolean {
   if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(hostname)) return true // 100.64.0.0/10 (CGNAT)
   if (hostname === 'localhost' || hostname.endsWith('.localhost')) return true
 
-  // IPv6 私有地址检测
   if (hostname === '::' || hostname === '::1') return true // 未指定 / 回环
   if (/^fe[89ab][0-9a-f]:/.test(hostname)) return true // 链路本地 fe80::/10
   if (/^f[cd][0-9a-f]{2}:/.test(hostname)) return true // 唯一本地地址 fc00::/7
@@ -46,7 +44,7 @@ export async function downloadImage(ctx: Context, url: string, maxBytes?: number
     return buffer
   }
 
-  // SSRF 防护：检查 URL 合法性
+  // 防 SSRF：只允许 http(s)，并拒绝直接指向内网的地址。
   let parsedUrl: URL
   try {
     parsedUrl = new URL(url)
@@ -54,12 +52,10 @@ export async function downloadImage(ctx: Context, url: string, maxBytes?: number
     throw new Error('Invalid URL format')
   }
 
-  // 只允许 http 和 https 协议
   if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
     throw new Error(`Protocol ${parsedUrl.protocol} is not allowed`)
   }
 
-  // 禁止访问私有 IP 地址
   const hostname = parsedUrl.hostname
   if (isPrivateIP(hostname)) {
     throw new Error('Access to private IP addresses is not allowed')

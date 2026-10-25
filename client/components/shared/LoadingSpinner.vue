@@ -1,6 +1,6 @@
 <template>
-  <div class="ml-loading">
-    <div class="ml-spinner"></div>
+  <div class="cm-loading">
+    <div class="cm-spinner"></div>
     <p>{{ message }}</p>
   </div>
 </template>

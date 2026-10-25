@@ -6,7 +6,7 @@ import { renderInjectPrompt } from './chatluna-inject'
 import { findByQuery } from './search'
 import {
   isReservedPath,
-  type MemesLunaService,
+  type ChatLunaMemesService,
 } from './service'
 import { toTrimmedString } from './utils'
 import { getLocalBaseUrl, toAbsoluteBaseUrl } from './urls'
@@ -17,7 +17,7 @@ import { MAX_IMAGE_BYTES, MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_BYTES } from './con
 async function applyDynamicForward(
   ctx: Context,
   config: Settings,
-  service: MemesLunaService,
+  service: ChatLunaMemesService,
   routeName: string,
   _query: Record<string, unknown>,
   requestOrigin?: string,
@@ -91,27 +91,27 @@ function sendImage(koa: any, image: { buffer: Buffer; mime: string }) {
 /** Console 页面地址；console 是可选依赖，用 ctx.get 避免未声明注入的警告。 */
 function getConsolePageUrl(ctx: Context): string {
   const uiPath: string = (ctx.get('console') as any)?.config?.uiPath ?? ''
-  return `${uiPath.replace(/\/+$/, '')}/memesluna`
+  return `${uiPath.replace(/\/+$/, '')}/chatluna-memes`
 }
 
-export function applyServer(ctx: Context, config: Settings, service: MemesLunaService) {
+export function applyServer(ctx: Context, config: Settings, service: ChatLunaMemesService) {
   if (!ctx.server) return
 
   const basePath = config.backendPath
 
   const guard = adminHttpGuard(ctx)
   const server = Object.fromEntries(['get', 'post'].map((method) => [method,
-    (route: string, handler: (koa: any) => Promise<void>) => {
+    (route: string, handler: (koa: any, next: () => Promise<void>) => Promise<void>) => {
       if (!route.startsWith(`${basePath}/api/admin/`)) {
         return (ctx.server as any)[method](route, handler)
       }
       // 管理路由只做鉴权；请求体（multipart）由各自处理器在鉴权后解析。
-      return (ctx.server as any)[method](route, guard, async (koa: any) => {
+      return (ctx.server as any)[method](route, guard, async (koa: any, next: () => Promise<void>) => {
         await service.ready
-        await handler(koa)
+        await handler(koa, next)
       })
     },
-  ])) as Record<'get' | 'post', (route: string, handler: (koa: any) => Promise<void>) => unknown>
+  ])) as Record<'get' | 'post', (route: string, handler: (koa: any, next: () => Promise<void>) => Promise<void>) => unknown>
 
   server.get(`${basePath}/api/homepage-data`, async (koa) => {
     const inventory = await service.buildRouteInventory(`${toAbsoluteBaseUrl(ctx, config)}${basePath}`)
@@ -143,7 +143,7 @@ export function applyServer(ctx: Context, config: Settings, service: MemesLunaSe
       koa.body = { error: 'multipart/form-data is required' }
       return
     }
-    const storageRoot = path.resolve(ctx.baseDir, 'data/memesluna')
+    const storageRoot = path.resolve(ctx.baseDir, 'data/chatluna-memes')
     await fs.mkdir(storageRoot, { recursive: true })
     const tempDir = await fs.mkdtemp(path.join(storageRoot, '.temp_upload-'))
     const form = formidable({
@@ -172,7 +172,7 @@ export function applyServer(ctx: Context, config: Settings, service: MemesLunaSe
         }
       }
       if (service.autoAnnotate && rowsToAnnotate.length) {
-        void service.queueAnnotation(rowsToAnnotate).catch((error) => ctx.logger('memesluna').warn(error))
+        void service.queueAnnotation(rowsToAnnotate).catch((error) => ctx.logger('chatluna-memes').warn(error))
       }
       koa.status = uploaded.length ? 200 : 400
       koa.body = { ok: failed.length === 0, uploaded, failed }
@@ -183,14 +183,6 @@ export function applyServer(ctx: Context, config: Settings, service: MemesLunaSe
       // 包括解析失败、单张失败和剩余未处理文件，不清理其他请求的目录。
       await fs.rm(tempDir, { recursive: true, force: true })
     }
-  })
-
-  server.get(`${basePath}/admin`, async (koa) => {
-    koa.redirect(getConsolePageUrl(ctx))
-  })
-
-  server.get(`${basePath}/admin/endpoint`, async (koa) => {
-    koa.redirect(getConsolePageUrl(ctx))
   })
 
   server.get(`${basePath}/api/collections/:name/images/:filename`, async (koa) => {
@@ -207,7 +199,8 @@ export function applyServer(ctx: Context, config: Settings, service: MemesLunaSe
     sendImage(koa, image)
   })
 
-  server.get(`${basePath}/`, async (koa) => {
+  // 不带结尾斜杠才能同时匹配 /prefix 和 /prefix/，提示词里给模型的搜索地址是前者。
+  server.get(basePath, async (koa, next) => {
     const query = typeof koa.request.query?.q === 'string' ? koa.request.query.q.trim() : ''
     if (query) {
       const result = await findByQuery(ctx, config, service, query, koa.request.origin)
@@ -215,7 +208,10 @@ export function applyServer(ctx: Context, config: Settings, service: MemesLunaSe
       return
     }
 
-    koa.redirect(getConsolePageUrl(ctx))
+    // 默认前缀和 Console 页面路径相同，这时交给 Console，否则会跳转到自己。
+    const consolePage = getConsolePageUrl(ctx)
+    if (koa.path.replace(/\/+$/, '') === consolePage) return next()
+    koa.redirect(consolePage)
   })
 
   server.get(`${basePath}/:name`, async (koa) => {

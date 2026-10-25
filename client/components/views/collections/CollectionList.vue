@@ -1,52 +1,52 @@
 <template>
-  <section class="ml-view">
-    <header class="ml-view-head">
-      <div class="ml-view-title">
-        <h1 class="ml-title">表情包</h1>
-        <div class="ml-actions">
-          <button type="button" class="ml-btn is-primary" @click="createCollection()">
+  <section class="cm-view">
+    <header class="cm-view-head">
+      <div class="cm-view-title">
+        <h1 class="cm-title">表情包</h1>
+        <div class="cm-actions">
+          <button type="button" class="cm-btn is-primary" @click="createCollection()">
             <Icon name="plus" />新建表情包
           </button>
         </div>
       </div>
-      <p class="ml-subtitle">每个表情包对应一个随机图地址，机器人访问时从中随机挑一张发出去。</p>
+      <p class="cm-subtitle">每个表情包对应一个随机图地址，机器人访问时从中随机挑一张发出去。</p>
     </header>
 
-    <div v-if="collections.length" class="ml-toolbar">
-      <div class="ml-segmented is-filter" role="radiogroup" aria-label="筛选表情包">
+    <div v-if="collections.length" class="cm-toolbar">
+      <div class="cm-segmented is-filter" role="radiogroup" aria-label="筛选表情包">
         <button v-for="option in filterOptions" :key="option.value" type="button" role="radio" :aria-checked="collectionFilter === option.value" :class="{ 'is-active': collectionFilter === option.value }" @click="collectionFilter = option.value">
           {{ option.label }} <span>{{ filterCounts[option.value] }}</span>
         </button>
       </div>
-      <label class="ml-search">
+      <label class="cm-search">
         <Icon name="search" />
         <input v-model="collectionSearchQuery" placeholder="搜索名称或描述" />
       </label>
     </div>
 
-    <div v-if="!collections.length" class="ml-empty">
-      <div class="ml-empty-icon"><Icon name="smile" /></div>
+    <div v-if="!collections.length" class="cm-empty">
+      <div class="cm-empty-icon"><Icon name="smile" /></div>
       <h3>还没有表情包</h3>
       <p>新建一个表情包，然后上传图片或导入外链。</p>
-      <button type="button" class="ml-btn is-primary" @click="createCollection()"><Icon name="plus" />新建表情包</button>
+      <button type="button" class="cm-btn is-primary" @click="createCollection()"><Icon name="plus" />新建表情包</button>
     </div>
 
-    <div v-else-if="!filteredCollections.length" class="ml-empty is-compact">
+    <div v-else-if="!filteredCollections.length" class="cm-empty is-compact">
       <h3>没有匹配的表情包</h3>
       <p>换个关键词或筛选条件试试。</p>
     </div>
 
-    <div v-else class="ml-collection-grid">
+    <div v-else class="cm-collection-grid">
       <article
         v-for="item in filteredCollections"
         :key="item.name"
-        class="ml-collection-card"
+        class="cm-collection-card"
         :class="{ 'is-menu-open': activeCollectionMenu === item.name }"
         tabindex="0"
         @click="enterCollectionDetail(item)"
         @keydown.enter="enterCollectionDetail(item)"
       >
-        <div class="ml-collection-cover" :data-count="Math.min(getCollectionCardPreviewImages(item.name).length, 4)">
+        <div class="cm-collection-cover" :data-count="Math.min(getCollectionCardPreviewImages(item.name).length, 4)">
           <img
             v-for="src in getCollectionCardPreviewImages(item.name).slice(0, 4)"
             :key="src"
@@ -55,28 +55,28 @@
             alt=""
             referrerpolicy="no-referrer"
           />
-          <div v-if="!getCollectionCardPreviewImages(item.name).length" class="ml-cover-empty">
-            <span v-if="getCollectionPreviewState(item.name)?.loading" class="ml-spinner is-small"></span>
+          <div v-if="!getCollectionCardPreviewImages(item.name).length" class="cm-cover-empty">
+            <span v-if="getCollectionPreviewState(item.name)?.loading" class="cm-spinner is-small"></span>
             <template v-else>暂无图片</template>
           </div>
         </div>
-        <div class="ml-collection-body">
-          <div class="ml-collection-title">
+        <div class="cm-collection-body">
+          <div class="cm-collection-title">
             <h3 :title="item.name">{{ item.name }}</h3>
-            <div class="ml-menu-anchor" @click.stop>
-              <button type="button" class="ml-icon-btn is-small" title="更多操作" :aria-expanded="activeCollectionMenu === item.name" @click="toggleCollectionMenu(item.name)">
+            <div class="cm-menu-anchor" @click.stop>
+              <button type="button" class="cm-icon-btn is-small" title="更多操作" :aria-expanded="activeCollectionMenu === item.name" @click="toggleCollectionMenu(item.name)">
                 <Icon name="more" />
               </button>
-              <div v-if="activeCollectionMenu === item.name" class="ml-menu" role="menu">
+              <div v-if="activeCollectionMenu === item.name" class="cm-menu" role="menu">
                 <button type="button" role="menuitem" @click="copyToClipboard(getBaseRedirectUrl(item.name), '随机图地址'); toggleCollectionMenu(item.name)"><Icon name="copy" />复制随机图地址</button>
                 <button type="button" role="menuitem" @click="openCollectionEditor(item)"><Icon name="edit" />编辑信息</button>
-                <div class="ml-menu-sep"></div>
+                <div class="cm-menu-sep"></div>
                 <button type="button" role="menuitem" class="is-danger" @click="confirmDeleteCollection(item.name)"><Icon name="trash" />删除表情包</button>
               </div>
             </div>
           </div>
-          <p class="ml-collection-desc" :class="{ 'is-placeholder': !item.description }" :title="item.description">{{ item.description || '未填写描述' }}</p>
-          <div class="ml-collection-meta">
+          <p class="cm-collection-desc" :class="{ 'is-placeholder': !item.description }" :title="item.description">{{ item.description || '未填写描述' }}</p>
+          <div class="cm-collection-meta">
             <span>{{ item.localCount }} 张图片</span>
             <span v-if="item.linkCount">{{ item.linkCount }} 个外链</span>
           </div>

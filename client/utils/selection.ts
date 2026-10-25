@@ -38,8 +38,8 @@ export function applyClickSelection(
 export function useSelectionShortcuts(options: { selectAll: () => void; clear: () => boolean }) {
   function onKeydown(event: KeyboardEvent) {
     const target = event.target as HTMLElement | null
-    if (target?.closest('input, textarea, [contenteditable="true"], .ml-overlay, .el-select-dropdown')) return
-    if (document.querySelector('.ml-overlay')) return
+    if (target?.closest('input, textarea, [contenteditable="true"], .cm-overlay, .el-select-dropdown')) return
+    if (document.querySelector('.cm-overlay')) return
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a') {
       event.preventDefault()
       options.selectAll()

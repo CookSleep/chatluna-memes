@@ -151,7 +151,7 @@ describe('搜索评分逻辑', () => {
       expect(ranked.length).toBeGreaterThan(0)
       expect(ranked[0].image.id).toBe(1)
       expect(ranked[0].score).toBeGreaterThanOrEqual(SEARCH_SCORE_THRESHOLD)
-      // phrase alias + term matches
+      // 短语命中别名，加上分词命中。
       expect(ranked[0].score).toBeGreaterThanOrEqual(SEARCH_SCORING.PHRASE_ALIAS)
     })
 

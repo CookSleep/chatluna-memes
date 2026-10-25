@@ -1,18 +1,30 @@
 {
-  "name": "koishi-plugin-memesluna",
-  "description": "Image Forward service for Koishi with ChatLuna integration",
-  "version": "0.6.0-alpha.14",
+  "name": "koishi-plugin-chatluna-memes",
+  "description": "为 ChatLuna 提供表情包：管理本地表情包和外部随机图源，注入随机图清单让模型发表情，支持 AI 标注与群聊高频图片收集",
+  "version": "0.1.0",
+  "homepage": "https://github.com/CookSleep/chatluna-memes",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CookSleep/chatluna-memes.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CookSleep/chatluna-memes/issues"
+  },
+  "keywords": [
+    "koishi",
+    "chatluna",
+    "meme",
+    "sticker",
+    "emoji"
+  ],
+  "contributors": [
+    "CookSleep",
+    "lumia1998"
+  ],
+  "license": "MIT",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "types": "lib/index.d.ts",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/lumia1998/koishi-plugin-memesluna.git"
-  },
-  "homepage": "https://github.com/lumia1998/koishi-plugin-memesluna#readme",
-  "bugs": {
-    "url": "https://github.com/lumia1998/koishi-plugin-memesluna/issues"
-  },
   "exports": {
     ".": {
       "types": "./lib/index.d.ts",
@@ -33,14 +45,6 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
   },
-  "license": "MIT",
-  "keywords": [
-    "koishi",
-    "plugin",
-    "chatluna",
-    "meme",
-    "image-forward"
-  ],
   "engines": {
     "node": ">=18.0.0"
   },
@@ -77,27 +81,27 @@
     }
   },
   "koishi": {
+    "category": "ai",
     "description": {
-      "zh": "图片转发服务插件，支持 302 重定向，支持 {memesluna} 变量注入 ChatLuna"
+      "zh": "为 ChatLuna 提供表情包：管理本地表情包和外部随机图源，注入随机图清单让模型发表情，支持 AI 标注与群聊高频图片收集"
     },
     "service": {
       "implements": [
-        "memesluna"
+        "chatluna_memes"
       ],
       "required": [
-        "database",
-        "chatluna",
-        "server"
+        "database"
       ],
       "optional": [
+        "server",
         "console",
-        "auth"
+        "auth",
+        "chatluna"
       ]
     },
     "locales": [
       "zh-CN"
     ],
-    "browser": true,
     "icon": "mdi:emoticon-outline"
   }
 }

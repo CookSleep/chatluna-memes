@@ -80,9 +80,7 @@ function markImageFrequencyStaged(
   if (record) record.staged = staged
 }
 
-/**
- * 清理过期时间戳；若条目数仍超过上限，删除最老的 25% 条目以防内存泄漏
- */
+/** 清理过期时间戳；条目数仍超过上限时删除最老的一部分，防止内存无限增长。 */
 function cleanupAutoCollectFrequency(
   windowMs: number,
   autoCollectFrequencyTracker: Map<string, AutoCollectFrequencyRecord>
@@ -101,7 +99,7 @@ function cleanupAutoCollectFrequency(
     1,
     Math.floor(autoCollectFrequencyTracker.size * FREQUENCY_TRACKER_CLEANUP_RATIO)
   )
-  // Map 保持插入顺序；按最早时间戳排序后删最老的一批
+  // 按最早时间戳排序，删掉最老的一批。
   const entries = [...autoCollectFrequencyTracker.entries()]
     .map(([key, record]) => {
       const earliest = record.timestamps.length
@@ -119,7 +117,7 @@ function cleanupAutoCollectFrequency(
 export function applyAutoCollect(ctx: Context, config: Settings) {
   if (!config.autoCollect) return
 
-  // 局部 Map：热重载时随插件 ctx dispose 一起销毁，不会累积
+  // 放在函数内，热重载时随插件一起销毁，不会累积。
   const autoCollectFrequencyTracker = new Map<string, AutoCollectFrequencyRecord>()
   const autoCollectDailyLimits = new Map<string, AutoCollectDailyLimitRecord>()
 
@@ -132,7 +130,7 @@ export function applyAutoCollect(ctx: Context, config: Settings) {
 
   ctx.on('message', async (session) => {
     if (session.isDirect) return
-    if (!ctx.memesluna) return
+    if (!ctx.chatluna_memes) return
 
     const groupId = getSessionGroupId(session)
     if (!groupId) return
@@ -142,7 +140,7 @@ export function applyAutoCollect(ctx: Context, config: Settings) {
     const imageUrls = getMessageImages(session.elements)
     if (!imageUrls.length) return
 
-    const service = ctx.memesluna
+    const service = ctx.chatluna_memes
     await service.ready
 
     for (const url of imageUrls) {
@@ -166,7 +164,7 @@ export function applyAutoCollect(ctx: Context, config: Settings) {
             continue
           }
           if (hitDailyAutoCollectLimit(groupId, dailyLimit, autoCollectDailyLimits)) {
-            ctx.logger('memesluna').debug(`Auto collect daily limit reached for group ${groupId}`)
+            ctx.logger('chatluna-memes').debug(`Auto collect daily limit reached for group ${groupId}`)
             continue
           }
           await service.addStagedImageBuffer(
@@ -183,11 +181,11 @@ export function applyAutoCollect(ctx: Context, config: Settings) {
         const message = (error as Error).message
         // 重复图片属于正常情况；下载、写入等失败需要能在日志里看到。
         if (message.startsWith('Duplicate image')) continue
-        ctx.logger('memesluna').warn(`Auto collect image failed: ${message}`)
+        ctx.logger('chatluna-memes').warn(`Auto collect image failed: ${message}`)
       }
     }
   })
 
   ctx.setInterval(() => cleanupAutoCollectFrequency(windowMs, autoCollectFrequencyTracker), Math.max(60 * 1000, windowMs))
-  ctx.logger('memesluna').info(`Auto collect started: ${windowMinutes}m/${threshold} times, ${config.minEmojiSize ?? 4}KB-${config.maxEmojiSize || 15}MB, ${dailyLimit}/day/group`)
+  ctx.logger('chatluna-memes').info(`Auto collect started: ${windowMinutes}m/${threshold} times, ${config.minEmojiSize ?? 4}KB-${config.maxEmojiSize || 15}MB, ${dailyLimit}/day/group`)
 }

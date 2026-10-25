@@ -13,7 +13,7 @@ interface Usage { day: string; requests: number; retries: number; successes: num
 export class AIUsageTracker {
   private usage: Usage = this.empty()
   private warned = false
-  private get filename() { return path.resolve(this.ctx.baseDir, 'data/memesluna/.ai-usage.json') }
+  private get filename() { return path.resolve(this.ctx.baseDir, 'data/chatluna-memes/.ai-usage.json') }
   constructor(private ctx: Context, private getDailyLimit: () => number) {}
   private get dailyLimit() { return this.getDailyLimit() }
   private empty(): Usage { return { day: getDailyKey(), requests: 0, retries: 0, successes: 0, failures: 0 } }
@@ -62,7 +62,7 @@ export class AIUsageTracker {
     if (allowed) onReserved?.(reservedDay!)
     if (allowed && this.dailyLimit > 0 && !this.warned && this.usage.requests / this.dailyLimit >= WARN_RATIO) {
       this.warned = true
-      this.ctx.logger('memesluna').warn(`AI 请求用量 ${this.usage.requests}/${this.dailyLimit}，接近每日上限`)
+      this.ctx.logger('chatluna-memes').warn(`AI 请求用量 ${this.usage.requests}/${this.dailyLimit}，接近每日上限`)
     }
     return allowed
   }

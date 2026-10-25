@@ -24,52 +24,13 @@ aliases：6~10 个，每个不超过 12 字
 
 export const DEFAULT_INJECT_PROMPT = `你可以发送表情包来表达情绪或回应别人。下面每一项都是一个随机图地址，每次访问会随机返回一张对应的图片：
 
-{endpoint}
+{chatluna_memes_list}
 
 使用方式：
 - 根据语境挑最合适的一项，把地址原样作为图片发出；不要改写地址，也不要编造列表里没有的地址
 - 想要更具体的画面时，在地址后加 ?q=关键词，例如 ?q=开心；找不到匹配时会随机返回一张
 - 拿不准选哪一项时，用 {base_url}{backend_path}?q=关键词 在全部表情包里搜索
 - 不必每次都发，合适的时候再发`
-
-// 旧版默认提示词。保存的值和它们完全一致时，说明用户没改过，换成新的默认值。
-const LEGACY_ANNOTATE_PROMPT = `你是"二次元表情检索标注助手"。请为表情图/反应图生成高命中检索标注。
-只输出 JSON 对象，不要输出任何解释，不要代码块。
-
-上下文：
-- 文件名: {{filename}}
-- 所在合集: {{collection_name}}
-- 图片直链: {{image_url}}
-
-字段要求：
-
-tags: 字符串数组（自由语义标签）
-- 1~5 项，每项 1~8 字
-- 用于概括图片的核心情绪、动作、场景或梗点
-- 不需要从固定候选中选择，不要堆砌近义词
-
-aliases: 字符串数组（辅助检索）
-- 至少 6 项检索短语，每项 2~10 字
-- 用于 /memesluna?q=关键词 或 合集路由 ?q=关键词 的直接关键字搜索
-- 包含口语说法、情绪短语、动作短语
-
-约束：
-- 以图像事实为准，不要把"幸福"标给明显"无奈/委屈"的图
-- 只返回合法 JSON，格式：{"aliases": [...], "tags": [...]}`
-
-const LEGACY_INJECT_PROMPT = `你可以根据需要选择合适的表情包合集或端点发送图片。
-
-可用的路由如下：
-
-{endpoint}
-
-使用规则：
-- 合集和端点都可以直接访问：{base_url}{backend_path}/合集名 或 {base_url}{backend_path}/端点名
-- 只使用上面列出的合集名或端点名，不要自己编造路径
-- 合集路由会在指定合集内随机返回图片，端点路由会转发到外部图源
-- 需要按语义找图时，再使用搜索参数：
-  - 跨合集搜索：{base_url}{backend_path}?q=关键词
-  - 合集搜索：{base_url}{backend_path}/合集名?q=关键词`
 
 export interface Settings {
   /** 对外地址，留空时使用 Koishi 的 server.selfUrl。 */
@@ -106,7 +67,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   selfUrl: '',
-  backendPath: '/memesluna',
+  backendPath: '/chatluna-memes',
   injectVariables: true,
   injectVariablesPrompt: DEFAULT_INJECT_PROMPT,
   autoCollect: false,
@@ -198,7 +159,7 @@ export function applySettingsPatch(current: Settings, patch: unknown): SettingsP
         next.selfUrl = url
       } else if (key === 'backendPath') {
         const pathname = normalizeBackendPath(value)
-        if (pathname === null) return { ok: false, error: '路由前缀只能包含字母、数字和 . _ ~ -，例如 /memesluna' }
+        if (pathname === null) return { ok: false, error: '路由前缀只能包含字母、数字和 . _ ~ -，例如 /chatluna-memes' }
         next.backendPath = pathname
       } else if (key in PROMPT_KEYS) {
         if (!value.trim()) return { ok: false, error: `${PROMPT_KEYS[key as keyof typeof PROMPT_KEYS]}不能为空` }
@@ -212,12 +173,12 @@ export function applySettingsPatch(current: Settings, patch: unknown): SettingsP
   return { ok: true, settings: next }
 }
 
-/** 宽松读取已保存或旧版的设置：不合法的项退回默认值，数字夹到允许范围内。 */
-// in 会匹配到 toString、constructor 等原型上的键。
+/** in 会匹配到 toString、constructor 等原型上的键。 */
 function hasOwn(target: object, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(target, key)
 }
 
+/** 宽松读取已保存或迁移来的设置：不合法的项退回默认值，数字夹到允许范围内。 */
 export function resolveSettings(input: unknown): Settings {
   const source = input && typeof input === 'object' ? input as Record<string, unknown> : {}
   const result: Settings = { ...DEFAULT_SETTINGS }
@@ -234,8 +195,8 @@ export function resolveSettings(input: unknown): Settings {
     } else if (typeof value === 'string') {
       if (key === 'selfUrl') result.selfUrl = normalizeSelfUrl(value) ?? ''
       else if (key === 'backendPath') result.backendPath = normalizeBackendPath(value) ?? DEFAULT_SETTINGS.backendPath
-      else if (key === 'annotatePrompt') { if (value.trim() && value !== LEGACY_ANNOTATE_PROMPT) result.annotatePrompt = value }
-      else if (key === 'injectVariablesPrompt') { if (value.trim() && value !== LEGACY_INJECT_PROMPT) result.injectVariablesPrompt = value }
+      else if (key === 'annotatePrompt') { if (value.trim()) result.annotatePrompt = value }
+      else if (key === 'injectVariablesPrompt') { if (value.trim()) result.injectVariablesPrompt = value }
       else (result as any)[key] = value.trim()
     }
   }
@@ -247,12 +208,4 @@ export function resolveSettings(input: unknown): Settings {
 /** 只保存和默认值不同的项，以后调整默认值时没改过的设置能跟着更新。 */
 export function diffFromDefaults(settings: Settings): Partial<Settings> {
   return Object.fromEntries(Object.entries(settings).filter(([key, value]) => DEFAULT_SETTINGS[key as keyof Settings] !== value)) as Partial<Settings>
-}
-
-/** 旧版写在 koishi.yml 里的配置项，转换成当前设置的字段。 */
-export function migrateLegacyConfig(legacy: unknown): Settings {
-  const source = legacy && typeof legacy === 'object' ? { ...legacy as Record<string, unknown> } : {}
-  if (typeof source.aiRequestTimeoutMs === 'number') source.aiRequestTimeout = Math.round(source.aiRequestTimeoutMs / 1000)
-  if (typeof source.aiBackoffBase === 'number') source.aiRetryDelay = Math.round(source.aiBackoffBase / 1000)
-  return resolveSettings(source)
 }

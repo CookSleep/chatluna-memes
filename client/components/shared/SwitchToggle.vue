@@ -2,7 +2,7 @@
   <button
     type="button"
     role="switch"
-    class="ml-switch"
+    class="cm-switch"
     :class="{ 'is-on': modelValue }"
     :aria-checked="modelValue"
     :aria-label="label"

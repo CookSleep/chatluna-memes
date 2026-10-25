@@ -1,6 +1,6 @@
 import type { CollectionResourcePage, CollectionPageQuery } from '../../src/console-rpc'
 
-/** 丢弃较早请求的结果，包括旧合集、旧搜索和已退出页面的请求。 */
+/** 丢弃较早请求的结果，包括切换前的表情包、旧搜索和已退出页面的请求。 */
 export class CollectionPageLoader {
   private generation = 0
 

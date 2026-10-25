@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
-import { MemesLunaService, hashImageBuffer } from '../src/service'
+import { ChatLunaMemesService, hashImageBuffer } from '../src/service'
 
 // Koishi 的 CJS loader 在 Vitest 的 ESM 转换中不兼容；使用生产入口。
 vi.mock('koishi', async () => {
@@ -24,13 +24,13 @@ function matches(row: any, query: any): boolean {
 }
 
 async function fixture() {
-  const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), 'memesluna-test-'))
+  const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), 'chatluna-memes-test-'))
   roots.push(baseDir)
-  const root = path.join(baseDir, 'data/memesluna')
+  const root = path.join(baseDir, 'data/chatluna-memes')
   await fs.mkdir(path.join(root, 'source'), { recursive: true })
   await fs.mkdir(path.join(root, 'target'))
   await fs.mkdir(path.join(root, '.staging'))
-  const tables: Record<string, any[]> = { memesluna_images: [], memesluna_staged_images: [], memesluna_endpoints: [] }
+  const tables: Record<string, any[]> = { chatluna_memes_images: [], chatluna_memes_staged_images: [], chatluna_memes_endpoints: [] }
   const database = {
     get: vi.fn(async (table: string, query: any, options?: any) => {
       let rows = tables[table].filter((row) => matches(row, query))
@@ -45,14 +45,14 @@ async function fixture() {
     }),
     eval: vi.fn(async (table: string, _expression: any, query: any) => tables[table].filter((row) => matches(row, query)).length),
     create: vi.fn(async (table: string, row: any) => {
-      if (table === 'memesluna_images' && tables[table].some((item) => item.collection === row.collection && item.index === row.index)) throw new Error('Duplicate index')
+      if (table === 'chatluna_memes_images' && tables[table].some((item) => item.collection === row.collection && item.index === row.index)) throw new Error('Duplicate index')
       tables[table].push({ ...row })
       return row
     }),
     set: vi.fn(async (table: string, query: any, update: any) => { for (const row of tables[table]) if (matches(row, query)) Object.assign(row, update) }),
     remove: vi.fn(async (table: string, query: any) => { tables[table] = tables[table].filter((row) => !matches(row, query)) }),
   }
-  const service = Object.create(MemesLunaService.prototype) as MemesLunaService
+  const service = Object.create(ChatLunaMemesService.prototype) as ChatLunaMemesService
   Object.assign(service, {
     ctx: { baseDir, database, emit: vi.fn(), logger: () => ({ warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) },
     config: { similarityThreshold: 0.9 },
@@ -67,23 +67,23 @@ describe('图片存储一致性', () => {
     const { service, root, tables } = await fixture()
     await fs.writeFile(path.join(root, 'source/a b.png'), 'legacy')
     await fs.writeFile(path.join(root, 'source/a_b.png'), 'existing')
-    tables.memesluna_images.push({ id: 'legacy', index: 1, collection: 'source', filename: 'a b.png', value: 'a b.png', type: 'local', tags: '["旧标注"]' })
+    tables.chatluna_memes_images.push({ id: 'legacy', index: 1, collection: 'source', filename: 'a b.png', value: 'a b.png', type: 'local', tags: '["旧标注"]' })
     await (service as any).syncExistingFilesToDatabase()
     expect(await fs.readFile(path.join(root, 'source/a_b.png'), 'utf8')).toBe('existing')
     expect(await fs.readFile(path.join(root, 'source/a_b_1.png'), 'utf8')).toBe('legacy')
-    expect(tables.memesluna_images.find((row) => row.id === 'legacy')).toMatchObject({ filename: 'a_b_1.png', tags: '["旧标注"]' })
+    expect(tables.chatluna_memes_images.find((row) => row.id === 'legacy')).toMatchObject({ filename: 'a_b_1.png', tags: '["旧标注"]' })
   })
   it('重复上传保留原 id、文件名和标注；不合法后缀不删除原图', async () => {
     const { service, root, tables } = await fixture()
     const buffer = Buffer.from('same image')
     const first = await service.addLocalImageBuffer('source', buffer, 'old.png')
-    tables.memesluna_images[0].aliases = '["已有别名"]'
+    tables.chatluna_memes_images[0].aliases = '["已有别名"]'
     await expect(service.addLocalImageBuffer('source', buffer, 'bad.avif')).rejects.toThrow('Unsupported')
     const duplicate = await service.addLocalImageBuffer('source', buffer, 'new.png')
     expect(duplicate.id).toBe(first.id)
     expect(duplicate.filename).toBe('old.png')
-    expect(tables.memesluna_images).toHaveLength(1)
-    expect(tables.memesluna_images[0].aliases).toBe('["已有别名"]')
+    expect(tables.chatluna_memes_images).toHaveLength(1)
+    expect(tables.chatluna_memes_images[0].aliases).toBe('["已有别名"]')
     expect(await fs.readFile(path.join(root, 'source/old.png'))).toEqual(buffer)
   })
 
@@ -100,7 +100,7 @@ describe('图片存储一致性', () => {
     try {
       await expect(service.addLocalImageBuffer('source', Buffer.from('image'), 'a.png')).rejects.toThrow('permission denied')
       expect(database.remove).not.toHaveBeenCalled()
-      expect(tables.memesluna_images).toHaveLength(1)
+      expect(tables.chatluna_memes_images).toHaveLength(1)
     } finally { access.mockRestore() }
   })
 
@@ -108,7 +108,7 @@ describe('图片存储一致性', () => {
     const { service, root, tables } = await fixture()
     const results = await Promise.all(Array.from({ length: 8 }, (_, index) => service.addLocalImageBuffer('source', Buffer.from(String(index)), 'a.png')))
     expect(new Set(results.map((row) => row.filename)).size).toBe(8)
-    expect(new Set(tables.memesluna_images.map((row) => row.index)).size).toBe(8)
+    expect(new Set(tables.chatluna_memes_images.map((row) => row.index)).size).toBe(8)
     for (let i = 0; i < results.length; i++) expect(await fs.readFile(path.join(root, 'source', results[i].filename), 'utf8')).toBe(String(i))
   })
 
@@ -127,15 +127,15 @@ describe('图片存储一致性', () => {
     const link = 'https://example.com/a.png'
     await service.addLinksToCollection('source', [link, 'https://example.com/b.png'])
     await service.addLinksToCollection('target', ['https://example.com/b.png'])
-    const tag = (value: string, collection: string, tags: string[]) => Object.assign(tables.memesluna_images.find((row) => row.value === value && row.collection === collection), { tags: JSON.stringify(tags) })
+    const tag = (value: string, collection: string, tags: string[]) => Object.assign(tables.chatluna_memes_images.find((row) => row.value === value && row.collection === collection), { tags: JSON.stringify(tags) })
     tag(link, 'source', ['猫'])
     tag('https://example.com/b.png', 'source', ['狗'])
     tag('https://example.com/b.png', 'target', ['柴犬'])
 
     expect(await service.moveLinkToCollection('source', 'target', link)).toBe(true)
     expect(await service.moveLinkToCollection('source', 'target', 'https://example.com/b.png')).toBe(true)
-    expect(tables.memesluna_images.filter((row) => row.collection === 'source')).toHaveLength(0)
-    const target = tables.memesluna_images.filter((row) => row.collection === 'target')
+    expect(tables.chatluna_memes_images.filter((row) => row.collection === 'source')).toHaveLength(0)
+    const target = tables.chatluna_memes_images.filter((row) => row.collection === 'target')
     expect(target).toHaveLength(2)
     expect(JSON.parse(target.find((row) => row.value === link).tags)).toEqual(['猫'])
     expect(JSON.parse(target.find((row) => row.value === 'https://example.com/b.png').tags)).toEqual(['柴犬', '狗'])
@@ -149,7 +149,7 @@ describe('图片存储一致性', () => {
     await expect(service.moveImageToCollection('source', 'target', 'a.png')).rejects.toThrow('database unavailable')
     expect(await fs.readFile(path.join(root, 'source/a.png'), 'utf8')).toBe('source')
     expect(await fs.readdir(path.join(root, 'target'))).toEqual([])
-    expect(tables.memesluna_images[0].collection).toBe('source')
+    expect(tables.chatluna_memes_images[0].collection).toBe('source')
   })
 
   it('合集改名同步目录、外链清单和数据库，失败时回滚', async () => {
@@ -161,12 +161,12 @@ describe('图片存储一致性', () => {
     database.set.mockRejectedValueOnce(new Error('database unavailable'))
     await expect(service.renameCollection('source', 'renamed')).rejects.toThrow('database unavailable')
     expect(await fs.readFile(path.join(root, 'source/source.txt'), 'utf8')).toBe('https://example.com/a.png')
-    expect(tables.memesluna_images[0].collection).toBe('source')
+    expect(tables.chatluna_memes_images[0].collection).toBe('source')
 
     expect(await service.renameCollection('source', 'renamed')).toBe(true)
     expect(await fs.readFile(path.join(root, 'renamed/a.png'), 'utf8')).toBe('source')
     expect(await fs.readFile(path.join(root, 'renamed/renamed.txt'), 'utf8')).toBe('https://example.com/a.png')
-    expect(tables.memesluna_images[0].collection).toBe('renamed')
+    expect(tables.chatluna_memes_images[0].collection).toBe('renamed')
     await expect(fs.stat(path.join(root, 'source'))).rejects.toThrow()
   })
 
@@ -183,18 +183,18 @@ describe('图片存储一致性', () => {
     const staged = await service.addStagedImageBuffer(Buffer.from('source'), 'a.png')
     database.remove.mockRejectedValueOnce(new Error('database unavailable'))
     await expect(service.promoteStagedImage(staged.id, 'source')).rejects.toThrow('database unavailable')
-    expect(tables.memesluna_images).toHaveLength(0)
-    expect(tables.memesluna_staged_images).toHaveLength(1)
+    expect(tables.chatluna_memes_images).toHaveLength(0)
+    expect(tables.chatluna_memes_staged_images).toHaveLength(1)
     expect(await fs.readFile(path.join(root, '.staging', staged.filename), 'utf8')).toBe('source')
   })
 
   it('追加标注从服务端现有数据合并，返回规范化结果', async () => {
     const { service, tables } = await fixture()
     await service.addLocalImageBuffer('source', Buffer.from('image'), 'a.png')
-    tables.memesluna_images[0].tags = '["已有标签"]'
+    tables.chatluna_memes_images[0].tags = '["已有标签"]'
     const results = await Promise.all(['新标签一', '新标签二'].map((tag) => service.updateImageMetadata({ collectionName: 'source', filename: 'a.png', tags: [tag], mode: 'add' })))
     expect(results.every((result) => result.ok)).toBe(true)
-    expect(JSON.parse(tables.memesluna_images[0].tags)).toEqual(['已有标签', '新标签一', '新标签二'])
+    expect(JSON.parse(tables.chatluna_memes_images[0].tags)).toEqual(['已有标签', '新标签一', '新标签二'])
     expect(await service.updateImageMetadata({ collectionName: 'source', filename: 'missing.png', tags: [] })).toMatchObject({ ok: false })
   })
 

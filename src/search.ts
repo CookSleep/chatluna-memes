@@ -1,6 +1,6 @@
 import type { Context } from 'koishi'
 import type { Settings } from './settings'
-import type { MemesLunaService } from './service'
+import type { ChatLunaMemesService } from './service'
 import {
   ALL_IMAGES_CACHE_TTL,
   SEARCH_INVERTED_INDEX_THRESHOLD,
@@ -38,7 +38,7 @@ export function splitTerms(input: string): string[] {
   return Array.from(new Set(terms.filter((t) => t.length > 0)))
 }
 
-/** Precomputed flattened fields so we don't re-parse JSON every request */
+/** 预先展开的字段，避免每次请求都重新解析 JSON。 */
 export interface CachedImage {
   row: any
   aliasesFlat: string[]
@@ -52,7 +52,7 @@ export interface RankedImage {
   matchedTerms: string[]
 }
 
-/** token / bigram -> image indices（用于大缓存候选过滤） */
+/** 词或二元组到图片下标的映射，图片多时用来筛候选。 */
 export type InvertedIndex = Map<string, number[]>
 
 export function toCachedImage(row: any): CachedImage {
@@ -66,7 +66,6 @@ export function toCachedImage(row: any): CachedImage {
   }
 }
 
-/** 为字段字符串建立全文 token + bigram 索引项 */
 function addFieldTokens(index: InvertedIndex, field: string, imageIndex: number) {
   if (!field) return
   const add = (token: string) => {
@@ -220,7 +219,7 @@ export function rankImagesByQuery(
   return ranked
 }
 
-// ── 全表扫描缓存，避免每次 HTTP 请求都打数据库 ──
+// 全表缓存，避免每次请求都查数据库。
 interface ImageCache {
   time: number
   generation: number
@@ -245,7 +244,7 @@ export async function getImageSearchCache(ctx: Context): Promise<ImageCache> {
   current.pending = (async () => {
     while (true) {
       const generation = cacheGeneration
-      const rows = await ctx.database.get('memesluna_images', {})
+      const rows = await ctx.database.get('chatluna_memes_images', {})
       if (generation !== cacheGeneration) continue
       current.images = rows.map(toCachedImage)
       current.index = current.images.length > SEARCH_INVERTED_INDEX_THRESHOLD
@@ -267,7 +266,7 @@ export async function getAllImagesCached(ctx: Context): Promise<CachedImage[]> {
   return (await getImageSearchCache(ctx)).images
 }
 
-/** 主动失效缓存（写操作后调用） */
+/** 写操作后调用，让缓存失效。 */
 export function invalidateAllImagesCache() {
   cacheGeneration++
 }
@@ -275,7 +274,7 @@ export function invalidateAllImagesCache() {
 export async function findByQuery(
   ctx: Context,
   config: Settings,
-  service: MemesLunaService,
+  service: ChatLunaMemesService,
   query: string,
   requestOrigin?: string,
   collectionName?: string,
@@ -287,8 +286,8 @@ export async function findByQuery(
   let invertedIndex: InvertedIndex | null = null
 
   if (collectionName) {
-    images = (await ctx.database.get('memesluna_images', { collection: collectionName })).map(toCachedImage)
-    // 合集通常较小：仅在 > 阈值时临时建索引
+    images = (await ctx.database.get('chatluna_memes_images', { collection: collectionName })).map(toCachedImage)
+    // 单个表情包通常不大，超过阈值才临时建索引。
     if (images.length > SEARCH_INVERTED_INDEX_THRESHOLD) {
       invertedIndex = buildInvertedIndex(images)
     }

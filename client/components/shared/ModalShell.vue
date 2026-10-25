@@ -1,10 +1,10 @@
 <template>
   <Teleport to="body">
-    <Transition name="ml-dialog">
-      <div v-if="open" ref="overlay" class="ml-theme ml-overlay" @mousedown.self="requestClose">
+    <Transition name="cm-dialog">
+      <div v-if="open" ref="overlay" class="cm-theme cm-overlay" @mousedown.self="requestClose">
         <component
           :is="as"
-          class="ml-dialog"
+          class="cm-dialog"
           :class="size && `is-${size}`"
           role="dialog"
           aria-modal="true"
@@ -45,8 +45,8 @@ export default defineComponent({
     function onKeydown(event: KeyboardEvent) {
       if (event.key !== 'Escape' || !overlay.value) return
       // 确认框（is-top）总在最上层，其余按 DOM 顺序取最后一个。
-      const overlays = document.querySelectorAll('.ml-overlay')
-      const top = document.querySelector('.ml-overlay.is-top') || overlays[overlays.length - 1]
+      const overlays = document.querySelectorAll('.cm-overlay')
+      const top = document.querySelector('.cm-overlay.is-top') || overlays[overlays.length - 1]
       if (top !== overlay.value) return
       event.stopPropagation()
       requestClose()

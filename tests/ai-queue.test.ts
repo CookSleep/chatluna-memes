@@ -10,7 +10,7 @@ const roots: string[] = []
 afterEach(async () => { vi.useRealTimers(); await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true }))) })
 
 async function tracker(limit: number) {
-  const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), 'memesluna-ai-'))
+  const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), 'chatluna-memes-ai-'))
   roots.push(baseDir)
   const ctx = { baseDir, logger: () => ({ warn: vi.fn() }) } as any
   return { instance: new AIUsageTracker(ctx, () => limit), ctx }
@@ -31,7 +31,7 @@ describe('AI 配额及调度', () => {
   })
   it('损坏配额文件不会被静默重置或允许新请求', async () => {
     const { instance, ctx } = await tracker(3)
-    const dir = path.join(ctx.baseDir, 'data/memesluna')
+    const dir = path.join(ctx.baseDir, 'data/chatluna-memes')
     await fs.mkdir(dir, { recursive: true })
     await fs.writeFile(path.join(dir, '.ai-usage.json'), 'invalid')
     await expect(instance.reserveRequest()).rejects.toThrow()

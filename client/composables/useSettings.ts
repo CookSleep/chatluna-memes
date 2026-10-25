@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { sendMemesLuna } from './rpc'
+import { sendChatLunaMemes } from './rpc'
 import type { ShowToast } from './useToast'
 import type { DialogOptions } from './useDialog'
 import type { ConsoleSettingsPayload } from '../../src/console-rpc'
@@ -60,7 +60,7 @@ export function useSettings({ showToast, confirmDialog, onSaved }: SettingsDeps)
   async function loadConfig() {
     configLoading.value = true
     try {
-      applyPayload(await sendMemesLuna('memesluna/getSettings'))
+      applyPayload(await sendChatLunaMemes('chatluna-memes/getSettings'))
     } catch (err) {
       showToast(err instanceof Error ? err.message : '读取配置失败', 'error')
     } finally {
@@ -71,7 +71,7 @@ export function useSettings({ showToast, confirmDialog, onSaved }: SettingsDeps)
   // 只刷新只读部分（模型列表、标注器状态），不覆盖正在编辑的草稿。
   async function refreshConfigStatus() {
     try {
-      const payload = await sendMemesLuna('memesluna/getSettings')
+      const payload = await sendChatLunaMemes('chatluna-memes/getSettings')
       if (configData.value) configData.value = { ...payload, settings: configData.value.settings }
     } catch {}
   }
@@ -108,7 +108,7 @@ export function useSettings({ showToast, confirmDialog, onSaved }: SettingsDeps)
     const patch = Object.fromEntries(changed.map((key) => [key, draft[key]])) as Partial<Settings>
     configSaving.value = true
     try {
-      const result = await sendMemesLuna('memesluna/updateSettings', patch)
+      const result = await sendChatLunaMemes('chatluna-memes/updateSettings', patch)
       if (!result.ok) { showToast(result.error, 'error'); return }
       configData.value = { ...configData.value!, settings: result.settings }
       configDraft.value = { ...result.settings }

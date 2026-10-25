@@ -15,7 +15,7 @@ describe('批量标注命令取消', () => {
     })
     const rows = Array.from({ length: 50 }, (_, id) => ({ id: String(id), type: 'local', tags: '[]' }))
     const queueAnnotation = vi.fn(async () => ({ success: 2, fail: 0, skipped: 0, cancelled: 48 }))
-    const ctx: any = { command, database: { get: async () => rows }, memesluna: { ready: Promise.resolve(), annotator: {}, queueAnnotation } }
+    const ctx: any = { command, database: { get: async () => rows }, chatluna_memes: { ready: Promise.resolve(), annotator: {}, queueAnnotation } }
     registerCommands(ctx, {} as any)
     const result = await actions.get('.tagall')!({ session: { send: vi.fn() }, options: {} })
     expect(queueAnnotation).toHaveBeenCalledTimes(1)

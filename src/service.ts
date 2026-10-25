@@ -16,10 +16,11 @@ import { parseJsonStringArray, normalizeMetadataList } from './utils'
 import { withStorageLock, removeWithRollback, unusedFilename } from './storage'
 import { groupSimilarImages } from './similarity'
 import { AnnotationQueue } from './annotation-queue'
+import { defineMetaTable, migrateLegacyData } from './migration'
 import { MAX_IMAGE_BYTES, MAX_METADATA_ALIASES, MAX_METADATA_TAGS, MAX_METADATA_ITEM_LENGTH } from './constants'
 import type { ImageMetadataPayload, ImageMetadataResult, CollectionPageQuery, CollectionResourcePage } from './console-rpc'
 
-/** 有限并发池，按顺序领取任务执行 */
+/** 有限并发池，按顺序领取任务执行。 */
 async function mapPool<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>) {
   if (!items.length) return
   let i = 0
@@ -34,7 +35,7 @@ async function mapPool<T>(items: T[], concurrency: number, fn: (item: T) => Prom
   if (failure) throw failure.reason
 }
 
-export const MEMESLUNA_IMAGES_UPDATED = 'memesluna/images-updated'
+export const CHATLUNA_MEMES_IMAGES_UPDATED = 'chatluna-memes/images-updated'
 
 export { sanitizeFilename } from './filename'
 
@@ -195,7 +196,7 @@ export interface SimilarStagedImagesResult {
   message: string
 }
 
-interface MemesLunaEndpointRow {
+interface ChatLunaMemesEndpointRow {
   id: string
   name: string
   group: string
@@ -210,7 +211,7 @@ interface MemesLunaEndpointRow {
   updated_at: Date
 }
 
-interface MemesLunaStagedImageRow {
+interface ChatLunaMemesStagedImageRow {
   id: string
   filename: string
   original_name: string
@@ -223,7 +224,7 @@ interface MemesLunaStagedImageRow {
   perceptual_hash: string
 }
 
-export class MemesLunaService extends Service {
+export class ChatLunaMemesService extends Service {
   private _readyPromise: Promise<void>
   private _readyResolve: () => void
   private _readyReject: (error: unknown) => void
@@ -233,7 +234,7 @@ export class MemesLunaService extends Service {
   private _annotationQueue = new AnnotationQueue()
 
   constructor(ctx: Context, public config: Settings) {
-    super(ctx, 'memesluna', true)
+    super(ctx, 'chatluna_memes', true)
     this.defineDatabase()
 
     this._readyPromise = new Promise((resolve, reject) => {
@@ -244,7 +245,14 @@ export class MemesLunaService extends Service {
 
     ctx.on('ready', async () => {
       try {
-        await withStorageLock(this.getStorageRoot(), () => this.ensureStorage())
+        await withStorageLock(this.getStorageRoot(), async () => {
+          // 迁移失败时不继续启动：同步目录会给已复制的图片另建记录，下次重试时就和原记录冲突了。
+          await migrateLegacyData(ctx, this.getStorageRoot()).catch((error) => {
+            ctx.logger('chatluna-memes').error('迁移 memesluna 的数据失败，插件没有启动，排查后重启 Koishi 会重新迁移:', error)
+            throw error
+          })
+          await this.ensureStorage()
+        })
         this._readyResolve()
       } catch (error) { this._readyReject(error); throw error }
     })
@@ -258,7 +266,7 @@ export class MemesLunaService extends Service {
   }
 
   private notifyImagesChanged() {
-    ;(this.ctx as any).emit(MEMESLUNA_IMAGES_UPDATED)
+    ;(this.ctx as any).emit(CHATLUNA_MEMES_IMAGES_UPDATED)
   }
 
   setAnnotator(annotator: AIAnnotator): void {
@@ -318,13 +326,14 @@ export class MemesLunaService extends Service {
         return 'success'
       }
       return await this.updateImageAnnotation(stored.id, result.aliases, result.tags) ? 'success' : 'skipped'
-    }, options?.onProgress, (error) => this.ctx.logger('memesluna').warn('Annotation task failed:', error), options?.immediate)
+    }, options?.onProgress, (error) => this.ctx.logger('chatluna-memes').warn('Annotation task failed:', error), options?.immediate)
   }
 
 
   private defineDatabase() {
+    defineMetaTable(this.ctx)
     this.ctx.database.extend(
-      'memesluna_endpoints',
+      'chatluna_memes_endpoints',
       {
         id: 'string',
         name: 'string',
@@ -346,7 +355,7 @@ export class MemesLunaService extends Service {
     )
 
     this.ctx.database.extend(
-      'memesluna_images',
+      'chatluna_memes_images',
       {
         id: 'string',
         collection: 'string',
@@ -372,7 +381,7 @@ export class MemesLunaService extends Service {
 
 
     this.ctx.database.extend(
-      'memesluna_staged_images',
+      'chatluna_memes_staged_images',
       {
         id: 'string',
         filename: 'string',
@@ -394,7 +403,7 @@ export class MemesLunaService extends Service {
   }
 
   private getStorageRoot() {
-    return path.resolve(this.ctx.baseDir, 'data/memesluna')
+    return path.resolve(this.ctx.baseDir, 'data/chatluna-memes')
   }
 
   private getStagingDir() {
@@ -413,14 +422,14 @@ export class MemesLunaService extends Service {
 
     const foldersSet = new Set(folders)
     try {
-      const allDbImages = await this.ctx.database.get('memesluna_images', {}, ['collection'])
+      const allDbImages = await this.ctx.database.get('chatluna_memes_images', {}, ['collection'])
       const dbCollections = new Set(allDbImages.map((img) => img.collection))
       const missingCollections = Array.from(dbCollections).filter((col) => !foldersSet.has(col))
       if (missingCollections.length > 0) {
-        await this.ctx.database.remove('memesluna_images', { collection: missingCollections })
+        await this.ctx.database.remove('chatluna_memes_images', { collection: missingCollections })
       }
     } catch (err) {
-      this.ctx.logger('memesluna').warn('Failed to cleanup missing collections from database:', err)
+      this.ctx.logger('chatluna-memes').warn('Failed to cleanup missing collections from database:', err)
     }
 
     await mapPool(folders, BACKFILL_CONCURRENCY, async (colName) => {
@@ -433,8 +442,7 @@ export class MemesLunaService extends Service {
         return
       }
 
-      // Fetch all registered images for this collection at once
-      const existingImages = await this.ctx.database.get('memesluna_images', { collection: colName })
+      const existingImages = await this.ctx.database.get('chatluna_memes_images', { collection: colName })
       const existingFilenames = new Set(existingImages.map((img) => img.filename))
       const existingExternalValues = new Set(
         existingImages.filter((img) => img.type === 'external').map((img) => img.value)
@@ -442,7 +450,6 @@ export class MemesLunaService extends Service {
       const existingIndices = new Set(existingImages.map((img) => img.index))
       let maxIndex = existingImages.reduce((max, img) => Math.max(max, img.index), 0)
 
-      // Sync local files
       const physicalFilenames = new Set<string>()
       for (const filename of files) {
         const safeName = sanitizeFilename(filename)
@@ -457,7 +464,7 @@ export class MemesLunaService extends Service {
           await fs.copyFile(oldPath, newPath, (await import('fs')).constants.COPYFILE_EXCL)
           try {
             await removeWithRollback(root, oldPath, async () => {
-              if (legacy) await this.ctx.database.set('memesluna_images', { id: legacy.id }, { filename: availableName, value: availableName, type: 'local' })
+              if (legacy) await this.ctx.database.set('chatluna_memes_images', { id: legacy.id }, { filename: availableName, value: availableName, type: 'local' })
             })
           } catch (error) { await fs.unlink(newPath); throw error }
           currentName = availableName
@@ -465,14 +472,12 @@ export class MemesLunaService extends Service {
         }
         physicalFilenames.add(currentName)
 
-        // Repair legacy rows when the physical file already exists locally.
-        // Older records may have an empty/storage type, so merely restarting
-        // must not leave them excluded from local-only operations such as tagall.
+        // 更早版本的记录 type 可能不是 local，有本地文件时修正，否则 tagall 等只处理本地图片的操作会漏掉它们。
         const existing = existingImages.find((img) => img.filename === currentName)
         if (existing) {
           if (existing.type !== 'external' && (existing.type !== 'local' || existing.value !== currentName)) {
             try {
-              await this.ctx.database.set('memesluna_images', { id: existing.id }, {
+              await this.ctx.database.set('chatluna_memes_images', { id: existing.id }, {
                 type: 'local',
                 value: currentName,
                 mime: this.getMimeByFilename(currentName),
@@ -482,11 +487,10 @@ export class MemesLunaService extends Service {
           continue
         }
 
-        // Check if already registered
         if (!existingFilenames.has(currentName)) {
           const index = ++maxIndex
           try {
-            await this.ctx.database.create('memesluna_images', {
+            await this.ctx.database.create('chatluna_memes_images', {
               id: randomUUID(),
               collection: colName,
               index,
@@ -503,18 +507,17 @@ export class MemesLunaService extends Service {
         }
       }
 
-      // Cleanup deleted local files from database
       const filesSet = physicalFilenames
       const missingLocalImages = existingImages.filter(
         (img) => img.type === 'local' && !filesSet.has(img.value || img.filename)
       )
       if (missingLocalImages.length > 0) {
-        await this.ctx.database.remove('memesluna_images', {
+        await this.ctx.database.remove('chatluna_memes_images', {
           id: missingLocalImages.map((img) => img.id),
         })
       }
 
-      // Sync links file
+      // 更早版本把外链存在表情包目录的清单文件里，导入数据库后删除该文件。
       const linksFile = this.getCollectionLinksFile(colName)
       try {
         const text = await fs.readFile(linksFile, 'utf8')
@@ -526,7 +529,7 @@ export class MemesLunaService extends Service {
         for (const link of links) {
           if (!existingExternalValues.has(link)) {
             const index = ++maxIndex
-            await this.ctx.database.create('memesluna_images', {
+            await this.ctx.database.create('chatluna_memes_images', {
               id: randomUUID(),
               collection: colName,
               index,
@@ -542,7 +545,6 @@ export class MemesLunaService extends Service {
             existingIndices.add(index)
           }
         }
-        // Cleanup migrated links file so we don't scan it repeatedly
         await fs.rm(linksFile, { force: true })
       } catch {}
     })
@@ -556,7 +558,7 @@ export class MemesLunaService extends Service {
       this.backfillImagesFingerprints(),
       this.backfillStagedFingerprints()
     ]).catch((err) => {
-      this.ctx.logger('memesluna').warn('Failed to backfill image fingerprints in background:', err)
+      this.ctx.logger('chatluna-memes').warn('Failed to backfill image fingerprints in background:', err)
     })
   }
 
@@ -571,7 +573,7 @@ export class MemesLunaService extends Service {
         const hash = buildDhashFromRgbaPixels(resizedImage.get_raw_pixels())
         if (hash) return hash
       } catch (error) {
-        this.ctx.logger('memesluna').debug(`Failed to calculate perceptual hash with photon: ${(error as Error).message}`)
+        this.ctx.logger('chatluna-memes').debug(`Failed to calculate perceptual hash with photon: ${(error as Error).message}`)
       } finally {
         try {
           resizedImage?.free?.()
@@ -608,7 +610,7 @@ export class MemesLunaService extends Service {
       }
       return hex
     } catch (error) {
-      this.ctx.logger('memesluna').debug(`Failed to calculate perceptual hash: ${(error as Error).message}`)
+      this.ctx.logger('chatluna-memes').debug(`Failed to calculate perceptual hash: ${(error as Error).message}`)
       return ''
     }
   }
@@ -633,7 +635,7 @@ export class MemesLunaService extends Service {
   }
 
   private async backfillImagesFingerprints() {
-    const images = await this.ctx.database.get('memesluna_images', {
+    const images = await this.ctx.database.get('chatluna_memes_images', {
       $or: [
         { hash: '' },
         { hash: { $exists: false } },
@@ -647,7 +649,7 @@ export class MemesLunaService extends Service {
       const buffer = await this.getImageRowBuffer(row)
       if (!buffer) {
         if (!row.hash || row.perceptual_hash === undefined) {
-          await this.ctx.database.set('memesluna_images', { id: row.id }, {
+          await this.ctx.database.set('chatluna_memes_images', { id: row.id }, {
             hash: row.hash || '',
             perceptual_hash: row.perceptual_hash || '',
           })
@@ -655,16 +657,16 @@ export class MemesLunaService extends Service {
         }
         return
       }
-      await this.ctx.database.set('memesluna_images', { id: row.id }, await this.getImageFingerprints(buffer))
+      await this.ctx.database.set('chatluna_memes_images', { id: row.id }, await this.getImageFingerprints(buffer))
       updated++
     })
     if (updated > 0) {
-      this.ctx.logger('memesluna').debug(`backfillImagesFingerprints updated ${updated} rows`)
+      this.ctx.logger('chatluna-memes').debug(`backfillImagesFingerprints updated ${updated} rows`)
     }
   }
 
   private async backfillStagedFingerprints() {
-    const stagedRows = await this.ctx.database.get('memesluna_staged_images', {
+    const stagedRows = await this.ctx.database.get('chatluna_memes_staged_images', {
       $or: [
         { hash: '' },
         { hash: { $exists: false } },
@@ -677,10 +679,10 @@ export class MemesLunaService extends Service {
       if (row.hash && row.perceptual_hash) return
       try {
         const buffer = await fs.readFile(this.resolveStagedImagePath(row.filename))
-        await this.ctx.database.set('memesluna_staged_images', { id: row.id }, await this.getImageFingerprints(buffer))
+        await this.ctx.database.set('chatluna_memes_staged_images', { id: row.id }, await this.getImageFingerprints(buffer))
         updated++
       } catch {
-        await this.ctx.database.set('memesluna_staged_images', { id: row.id }, {
+        await this.ctx.database.set('chatluna_memes_staged_images', { id: row.id }, {
           hash: row.hash || '',
           perceptual_hash: row.perceptual_hash || '',
         })
@@ -688,7 +690,7 @@ export class MemesLunaService extends Service {
       }
     })
     if (updated > 0) {
-      this.ctx.logger('memesluna').debug(`backfillStagedFingerprints updated ${updated} rows`)
+      this.ctx.logger('chatluna-memes').debug(`backfillStagedFingerprints updated ${updated} rows`)
     }
   }
 
@@ -702,7 +704,7 @@ export class MemesLunaService extends Service {
     const includeImages = options.includeImages ?? true
 
     if (includeStaged) {
-      const stagedRows = await this.ctx.database.get('memesluna_staged_images', { hash })
+      const stagedRows = await this.ctx.database.get('chatluna_memes_staged_images', { hash })
       for (const staged of stagedRows) {
         if (staged.id === options.ignoreStagedId) continue
         try {
@@ -711,7 +713,7 @@ export class MemesLunaService extends Service {
           return `暂缓区/${staged.original_name || staged.filename}`
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-          await this.ctx.database.remove('memesluna_staged_images', { id: staged.id })
+          await this.ctx.database.remove('chatluna_memes_staged_images', { id: staged.id })
         }
       }
     }
@@ -721,7 +723,7 @@ export class MemesLunaService extends Service {
       if (options.collection) {
         query.collection = options.collection
       }
-      const imageRows = await this.ctx.database.get('memesluna_images', query)
+      const imageRows = await this.ctx.database.get('chatluna_memes_images', query)
       for (const image of imageRows) {
         if (image.type === 'local') {
           try {
@@ -730,7 +732,7 @@ export class MemesLunaService extends Service {
             return `${image.collection}/${image.filename}`
           } catch (error) {
             if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-            await this.ctx.database.remove('memesluna_images', { id: image.id })
+            await this.ctx.database.remove('chatluna_memes_images', { id: image.id })
             this.notifyImagesChanged()
           }
         } else {
@@ -745,7 +747,7 @@ export class MemesLunaService extends Service {
   private async getExistingImageRowByHash(hash: string, collectionName: string): Promise<any | null> {
     if (!hash) return null
 
-    const rows = await this.ctx.database.get('memesluna_images', { collection: collectionName, hash })
+    const rows = await this.ctx.database.get('chatluna_memes_images', { collection: collectionName, hash })
     for (const row of rows) {
       if (row.type === 'local') {
         try {
@@ -753,7 +755,7 @@ export class MemesLunaService extends Service {
           return row
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-          await this.ctx.database.remove('memesluna_images', { id: row.id })
+          await this.ctx.database.remove('chatluna_memes_images', { id: row.id })
           this.notifyImagesChanged()
         }
       } else {
@@ -767,9 +769,9 @@ export class MemesLunaService extends Service {
   async getSimilarStagedImages(threshold = this.config.similarityThreshold || 0.9): Promise<SimilarStagedImagesResult> {
     const normalizedThreshold = Math.min(1, Math.max(0.5, Number(threshold) || 0.9))
     await this.backfillStagedFingerprints()
-    const rows = await this.ctx.database.get('memesluna_staged_images', {})
+    const rows = await this.ctx.database.get('chatluna_memes_staged_images', {})
     const items = rows
-      .map((row) => this.mapStagedImage(row as MemesLunaStagedImageRow))
+      .map((row) => this.mapStagedImage(row as ChatLunaMemesStagedImageRow))
       .filter((item) => item.perceptualHash)
 
     if (!items.length) {
@@ -866,11 +868,11 @@ export class MemesLunaService extends Service {
     const oldDir = this.getCollectionDir(collectionName)
     const newDir = this.getCollectionDir(newName)
     await fs.rename(oldDir, newDir)
-    // 外链清单文件以合集名命名，需要跟着改名。
+    // 尚未导入的旧版外链清单文件以表情包名命名，需要跟着改名。
     const oldLinksFile = path.join(newDir, `${collectionName}.txt`)
     const linksRenamed = await fs.rename(oldLinksFile, this.getCollectionLinksFile(newName)).then(() => true, () => false)
     try {
-      await this.ctx.database.set('memesluna_images', { collection: collectionName }, { collection: newName })
+      await this.ctx.database.set('chatluna_memes_images', { collection: collectionName }, { collection: newName })
     } catch (error) {
       if (linksRenamed) await fs.rename(this.getCollectionLinksFile(newName), oldLinksFile)
       await fs.rename(newDir, oldDir)
@@ -937,7 +939,7 @@ export class MemesLunaService extends Service {
     if (!(await this.collectionExists(collectionName))) return false
     // 文件或数据库失败需要让调用方看到真实错误，而不是当作“不存在”。
     await removeWithRollback(this.getStorageRoot(), this.getCollectionDir(collectionName),
-      () => this.ctx.database.remove('memesluna_images', { collection: collectionName }))
+      () => this.ctx.database.remove('chatluna_memes_images', { collection: collectionName }))
     this.notifyImagesChanged()
     return true
   }
@@ -962,7 +964,7 @@ export class MemesLunaService extends Service {
     return mimeFromFilename(filename)
   }
 
-  private mapStagedImage(row: MemesLunaStagedImageRow): StagedImageInfo {
+  private mapStagedImage(row: ChatLunaMemesStagedImageRow): StagedImageInfo {
     return {
       id: row.id,
       filename: row.filename,
@@ -990,7 +992,7 @@ export class MemesLunaService extends Service {
       return null
     }
 
-    const rows = await this.ctx.database.get('memesluna_images', { collection: collectionName, filename })
+    const rows = await this.ctx.database.get('chatluna_memes_images', { collection: collectionName, filename })
     if (!rows.length) {
       return null
     }
@@ -1005,7 +1007,6 @@ export class MemesLunaService extends Service {
       }
     }
 
-    // local
     let fullPath: string
     try {
       fullPath = this.resolveLocalImagePath(collectionName, image.value)
@@ -1042,7 +1043,7 @@ export class MemesLunaService extends Service {
       return 0
     }
 
-    const existingImages = await this.ctx.database.get('memesluna_images', { collection: collectionName })
+    const existingImages = await this.ctx.database.get('chatluna_memes_images', { collection: collectionName })
     const existingExternalValues = new Set(
       existingImages.filter((img) => img.type === 'external').map((img) => img.value)
     )
@@ -1052,7 +1053,7 @@ export class MemesLunaService extends Service {
     for (const link of normalized) {
       if (!existingExternalValues.has(link)) {
         const index = ++maxIndex
-        await this.ctx.database.create('memesluna_images', {
+        await this.ctx.database.create('chatluna_memes_images', {
           id: randomUUID(),
           collection: collectionName,
           index,
@@ -1082,12 +1083,12 @@ export class MemesLunaService extends Service {
       return false
     }
 
-    const existing = await this.ctx.database.get('memesluna_images', { collection: collectionName, value: link, type: 'external' })
+    const existing = await this.ctx.database.get('chatluna_memes_images', { collection: collectionName, value: link, type: 'external' })
     if (!existing.length) {
       return false
     }
 
-    await this.ctx.database.remove('memesluna_images', { collection: collectionName, value: link, type: 'external' })
+    await this.ctx.database.remove('chatluna_memes_images', { collection: collectionName, value: link, type: 'external' })
     this.notifyImagesChanged()
     return true
   }
@@ -1099,22 +1100,22 @@ export class MemesLunaService extends Service {
       this.ensureCollectionName(targetCollection)
       if (sourceCollection === targetCollection) return false
       if (!(await this.collectionExists(sourceCollection)) || !(await this.collectionExists(targetCollection))) return false
-      const [row] = await this.ctx.database.get('memesluna_images', { collection: sourceCollection, value: link, type: 'external' })
+      const [row] = await this.ctx.database.get('chatluna_memes_images', { collection: sourceCollection, value: link, type: 'external' })
       if (!row) return false
-      const [existing] = await this.ctx.database.get('memesluna_images', { collection: targetCollection, value: link, type: 'external' })
+      const [existing] = await this.ctx.database.get('chatluna_memes_images', { collection: targetCollection, value: link, type: 'external' })
       if (existing) {
         const merge = (a: string, b: string, max: number) => JSON.stringify(normalizeMetadataList(
           [...parseJsonStringArray(a), ...parseJsonStringArray(b)], max, MAX_METADATA_ITEM_LENGTH,
         ))
-        await this.ctx.database.set('memesluna_images', { id: existing.id }, {
+        await this.ctx.database.set('chatluna_memes_images', { id: existing.id }, {
           aliases: merge(existing.aliases, row.aliases, MAX_METADATA_ALIASES),
           tags: merge(existing.tags, row.tags, MAX_METADATA_TAGS),
         })
-        await this.ctx.database.remove('memesluna_images', { id: row.id })
+        await this.ctx.database.remove('chatluna_memes_images', { id: row.id })
       } else {
-        const [last] = await this.ctx.database.get('memesluna_images', { collection: targetCollection }, { limit: 1, sort: { index: 'desc' } })
+        const [last] = await this.ctx.database.get('chatluna_memes_images', { collection: targetCollection }, { limit: 1, sort: { index: 'desc' } })
         const index = (last?.index ?? 0) + 1
-        await this.ctx.database.set('memesluna_images', { id: row.id }, {
+        await this.ctx.database.set('chatluna_memes_images', { id: row.id }, {
           collection: targetCollection,
           index,
           filename: await this.deduplicateDatabaseFilename(targetCollection, `link_${index}`),
@@ -1164,7 +1165,7 @@ export class MemesLunaService extends Service {
 
   private async deduplicateDatabaseFilename(collectionName: string, filename: string): Promise<string> {
     return unusedFilename(this.getCollectionDir(collectionName), filename, async (candidate) => {
-      const rows = await this.ctx.database.get('memesluna_images', { collection: collectionName, filename: candidate })
+      const rows = await this.ctx.database.get('chatluna_memes_images', { collection: collectionName, filename: candidate })
       return rows.length > 0
     })
   }
@@ -1196,7 +1197,7 @@ export class MemesLunaService extends Service {
     const fingerprints = await this.getImageFingerprints(buffer)
     const duplicate = await this.getExistingImageRowByHash(fingerprints.hash, collectionName)
     if (duplicate) return { id: duplicate.id, filename: duplicate.filename, created: false }
-    const maxImg = await this.ctx.database.get('memesluna_images', { collection: collectionName }, { limit: 1, sort: { index: 'desc' } })
+    const maxImg = await this.ctx.database.get('chatluna_memes_images', { collection: collectionName }, { limit: 1, sort: { index: 'desc' } })
     const index = maxImg.length ? maxImg[0].index + 1 : 1
 
     const baseName = originalName ? path.basename(originalName, path.extname(originalName)) : `image-${Date.now()}`
@@ -1204,12 +1205,11 @@ export class MemesLunaService extends Service {
     const finalName = await this.deduplicateDatabaseFilename(collectionName, safeBase)
 
     const id = randomUUID()
-    // Local upload
     const dir = this.getCollectionDir(collectionName)
     const destination = path.join(dir, finalName)
     await fs.writeFile(destination, buffer, { flag: 'wx' })
     try {
-      await this.ctx.database.create('memesluna_images', {
+      await this.ctx.database.create('chatluna_memes_images', {
       id,
       collection: collectionName,
       index,
@@ -1254,8 +1254,8 @@ export class MemesLunaService extends Service {
     }
     if (conditions.length === 1) Object.assign(query, conditions[0])
     else if (conditions.length) query.$and = conditions
-    const total = await this.ctx.database.eval('memesluna_images', (row) => Eval.count(row.id), query)
-    const rows = await this.ctx.database.get('memesluna_images', query, {
+    const total = await this.ctx.database.eval('chatluna_memes_images', (row) => Eval.count(row.id), query)
+    const rows = await this.ctx.database.get('chatluna_memes_images', query, {
       limit, offset, sort: { filename: input.sort === 'nameDesc' ? 'desc' : 'asc', id: 'asc' },
     })
     return {
@@ -1276,7 +1276,7 @@ export class MemesLunaService extends Service {
       for (const list of [payload.aliases, payload.tags]) {
         if (list !== undefined && (!Array.isArray(list) || list.some((item) => typeof item !== 'string'))) return { ok: false, error: '标注必须为字符串数组' }
       }
-      const rows = await this.ctx.database.get('memesluna_images', { collection: collectionName, filename })
+      const rows = await this.ctx.database.get('chatluna_memes_images', { collection: collectionName, filename })
       if (!rows.length) return { ok: false, error: '图片不存在' }
       const row = rows[0]
       const merge = (existing: string, incoming: string[] | undefined, max: number) => normalizeMetadataList(
@@ -1286,14 +1286,14 @@ export class MemesLunaService extends Service {
       )
       const aliases = merge(row.aliases, payload.aliases, MAX_METADATA_ALIASES)
       const tags = merge(row.tags, payload.tags, MAX_METADATA_TAGS)
-      await this.ctx.database.set('memesluna_images', { id: row.id }, { aliases: JSON.stringify(aliases), tags: JSON.stringify(tags) })
+      await this.ctx.database.set('chatluna_memes_images', { id: row.id }, { aliases: JSON.stringify(aliases), tags: JSON.stringify(tags) })
       this.notifyImagesChanged()
       return { ok: true, aliases, tags }
     })
   }
 
   async getImageById(id: string) {
-    const rows = await this.ctx.database.get('memesluna_images', { id })
+    const rows = await this.ctx.database.get('chatluna_memes_images', { id })
     return rows[0] ?? null
   }
 
@@ -1307,7 +1307,7 @@ export class MemesLunaService extends Service {
     const update: any = {}
     if (aliases !== undefined) update.aliases = JSON.stringify(aliases)
     if (tags !== undefined) update.tags = JSON.stringify(tags)
-    await this.ctx.database.set('memesluna_images', { id }, update)
+    await this.ctx.database.set('chatluna_memes_images', { id }, update)
     this.notifyImagesChanged()
     return true
   }
@@ -1359,7 +1359,7 @@ export class MemesLunaService extends Service {
     }
 
     try {
-      await this.ctx.database.create('memesluna_staged_images', row)
+      await this.ctx.database.create('chatluna_memes_staged_images', row)
     } catch (error) {
       await fs.unlink(targetPath)
       throw error
@@ -1381,16 +1381,16 @@ export class MemesLunaService extends Service {
   }
 
   async getStagedImages(): Promise<StagedImageInfo[]> {
-    const rows = await this.ctx.database.get('memesluna_staged_images', {})
+    const rows = await this.ctx.database.get('chatluna_memes_staged_images', {})
     return rows
-      .map((row) => this.mapStagedImage(row as MemesLunaStagedImageRow))
+      .map((row) => this.mapStagedImage(row as ChatLunaMemesStagedImageRow))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   }
 
   async getStagedImageBuffer(id: string): Promise<{ buffer: Buffer; mime: string; filename: string } | null> {
-    const rows = await this.ctx.database.get('memesluna_staged_images', { id })
+    const rows = await this.ctx.database.get('chatluna_memes_staged_images', { id })
     if (!rows.length) return null
-    const row = rows[0] as MemesLunaStagedImageRow
+    const row = rows[0] as ChatLunaMemesStagedImageRow
 
     try {
       const buffer = await fs.readFile(this.resolveStagedImagePath(row.filename))
@@ -1405,12 +1405,12 @@ export class MemesLunaService extends Service {
   }
 
   private async deleteStagedImageUnlocked(id: string): Promise<boolean> {
-    const rows = await this.ctx.database.get('memesluna_staged_images', { id })
+    const rows = await this.ctx.database.get('chatluna_memes_staged_images', { id })
     if (!rows.length) return false
-    const row = rows[0] as MemesLunaStagedImageRow
+    const row = rows[0] as ChatLunaMemesStagedImageRow
 
     await removeWithRollback(this.getStorageRoot(), this.resolveStagedImagePath(row.filename),
-      () => this.ctx.database.remove('memesluna_staged_images', { id }))
+      () => this.ctx.database.remove('chatluna_memes_staged_images', { id }))
     return true
   }
 
@@ -1421,7 +1421,7 @@ export class MemesLunaService extends Service {
   private async deleteExpiredStagedImagesUnlocked(retentionDays: number): Promise<number> {
     if (retentionDays <= 0) return 0
     const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
-    const rows = await this.ctx.database.get('memesluna_staged_images', {})
+    const rows = await this.ctx.database.get('chatluna_memes_staged_images', {})
     const expired = rows.filter((row) => new Date(row.created_at).getTime() < cutoff.getTime())
     if (!expired.length) return 0
 
@@ -1436,7 +1436,7 @@ export class MemesLunaService extends Service {
   }
 
   private async deleteAllStagedImagesUnlocked(): Promise<number> {
-    const rows = await this.ctx.database.get('memesluna_staged_images', {})
+    const rows = await this.ctx.database.get('chatluna_memes_staged_images', {})
     if (!rows.length) return 0
 
     let deleted = 0
@@ -1455,26 +1455,24 @@ export class MemesLunaService extends Service {
       throw new Error(`Collection not found: ${collectionName}`)
     }
 
-    const rows = await this.ctx.database.get('memesluna_staged_images', { id })
+    const rows = await this.ctx.database.get('chatluna_memes_staged_images', { id })
     if (!rows.length) return null
-    const row = rows[0] as MemesLunaStagedImageRow
+    const row = rows[0] as ChatLunaMemesStagedImageRow
     const staged = await this.getStagedImageBuffer(id)
     if (!staged) return null
 
-    // P1 修复：添加事务性保护，防止归档过程中的数据不一致
+    // 写入表情包成功后才删除暂缓区图片；中途失败则撤销本次新建的图片。
     let savedResult: any
     try {
       const originalName = this.isImageFile(row.original_name) ? row.original_name : row.filename
       savedResult = await this.addLocalImageBufferUnlocked(collectionName, staged.buffer, originalName)
 
-      // 只有在成功写入正式合集后才删除暂缓区图片
       await this.deleteStagedImageUnlocked(id)
     } catch (error) {
       if (savedResult?.created) {
         await this.deleteImageFromCollectionUnlocked(collectionName, savedResult.filename)
       }
-      // 撤销本次新建的正式图片，保留原暂缓区图片。
-      this.ctx.logger('memesluna').error(`Failed to promote staged image ${id}:`, error)
+      this.ctx.logger('chatluna-memes').error(`Failed to promote staged image ${id}:`, error)
       throw error
     }
 
@@ -1507,7 +1505,7 @@ export class MemesLunaService extends Service {
       return false
     }
 
-    const rows = await this.ctx.database.get('memesluna_images', { collection: collectionName, filename: safeName })
+    const rows = await this.ctx.database.get('chatluna_memes_images', { collection: collectionName, filename: safeName })
     if (!rows.length) {
       return false
     }
@@ -1516,9 +1514,9 @@ export class MemesLunaService extends Service {
     if (image.type === 'local') {
       const fullPath = path.join(this.getCollectionDir(collectionName), safeName)
       await removeWithRollback(this.getStorageRoot(), fullPath,
-        () => this.ctx.database.remove('memesluna_images', { id: image.id }))
+        () => this.ctx.database.remove('chatluna_memes_images', { id: image.id }))
     } else {
-      await this.ctx.database.remove('memesluna_images', { id: image.id })
+      await this.ctx.database.remove('chatluna_memes_images', { id: image.id })
     }
     this.notifyImagesChanged()
     return true
@@ -1546,7 +1544,7 @@ export class MemesLunaService extends Service {
       return null
     }
 
-    const rows = await this.ctx.database.get('memesluna_images', { collection: sourceCollection, filename: safeName })
+    const rows = await this.ctx.database.get('chatluna_memes_images', { collection: sourceCollection, filename: safeName })
     if (!rows.length) {
       return null
     }
@@ -1555,14 +1553,14 @@ export class MemesLunaService extends Service {
 
     if (sourceCollection === targetCollection) return safeName
     if (image.type !== 'local') return null
-    const maxImg = await this.ctx.database.get('memesluna_images', { collection: targetCollection }, { limit: 1, sort: { index: 'desc' } })
+    const maxImg = await this.ctx.database.get('chatluna_memes_images', { collection: targetCollection }, { limit: 1, sort: { index: 'desc' } })
     const targetIndex = maxImg.length ? maxImg[0].index + 1 : 1
     const targetFilename = await this.deduplicateDatabaseFilename(targetCollection, safeName)
     const sourcePath = path.join(this.getCollectionDir(sourceCollection), safeName)
     const targetPath = path.join(this.getCollectionDir(targetCollection), targetFilename)
     await fs.copyFile(sourcePath, targetPath, (await import('fs')).constants.COPYFILE_EXCL)
     try {
-      await removeWithRollback(this.getStorageRoot(), sourcePath, () => this.ctx.database.set('memesluna_images', { id: image.id }, {
+      await removeWithRollback(this.getStorageRoot(), sourcePath, () => this.ctx.database.set('chatluna_memes_images', { id: image.id }, {
         collection: targetCollection,
         index: targetIndex,
         filename: targetFilename,
@@ -1580,7 +1578,7 @@ export class MemesLunaService extends Service {
   async getCollectionInfos(names?: string[]): Promise<CollectionInfo[]> {
     const collections = names || await this.getCollections()
     if (!collections.length) return []
-    const rows = await this.ctx.database.get('memesluna_images', { collection: collections }, ['collection', 'filename', 'type', 'created_at'])
+    const rows = await this.ctx.database.get('chatluna_memes_images', { collection: collections }, ['collection', 'filename', 'type', 'created_at'])
     const summaries = new Map<string, { local: number; external: number; cover?: string; first: number; last: number }>()
     for (const row of rows) {
       const summary = summaries.get(row.collection) || { local: 0, external: 0, first: Infinity, last: 0 }
@@ -1593,7 +1591,7 @@ export class MemesLunaService extends Service {
     const result = new Map<string, CollectionInfo>()
     await mapPool(collections, BACKFILL_CONCURRENCY, async (name) => {
       const summary = summaries.get(name) || { local: 0, external: 0, first: Infinity, last: 0 }
-      // 合集可能在列举后被并发删除，跳过即可，不应让整个列表失败。
+      // 表情包可能在列举后被并发删除，跳过即可，不应让整个列表失败。
       const stat = await fs.stat(this.getCollectionDir(name)).catch(() => null)
       if (!stat) return
       result.set(name, {
@@ -1615,13 +1613,13 @@ export class MemesLunaService extends Service {
       return null
     }
 
-    const count = await this.ctx.database.eval('memesluna_images', (row) => Eval.count(row.id), { collection: collectionName })
+    const count = await this.ctx.database.eval('chatluna_memes_images', (row) => Eval.count(row.id), { collection: collectionName })
     if (count === 0) {
       return null
     }
 
     const offset = Math.floor(Math.random() * count)
-    const rows = await this.ctx.database.get('memesluna_images', { collection: collectionName }, { limit: 1, offset })
+    const rows = await this.ctx.database.get('chatluna_memes_images', { collection: collectionName }, { limit: 1, offset })
     if (!rows.length) {
       return null
     }
@@ -1650,7 +1648,7 @@ export class MemesLunaService extends Service {
     }
   }
 
-  private mapEndpoint(row: MemesLunaEndpointRow): ApiEndpoint {
+  private mapEndpoint(row: ChatLunaMemesEndpointRow): ApiEndpoint {
     return {
       id: row.id,
       name: row.name,
@@ -1664,12 +1662,12 @@ export class MemesLunaService extends Service {
   }
 
   async getEndpoints(): Promise<ApiEndpoint[]> {
-    const rows = await this.ctx.database.get('memesluna_endpoints', {})
+    const rows = await this.ctx.database.get('chatluna_memes_endpoints', {})
     return rows.map((row) => this.mapEndpoint(row)).sort((a, b) => a.name.localeCompare(b.name))
   }
 
   async getEndpointByName(name: string): Promise<ApiEndpoint | null> {
-    const rows = await this.ctx.database.get('memesluna_endpoints', { name })
+    const rows = await this.ctx.database.get('chatluna_memes_endpoints', { name })
     if (!rows.length) return null
     return this.mapEndpoint(rows[0])
   }
@@ -1692,7 +1690,7 @@ export class MemesLunaService extends Service {
 
     const id = randomUUID()
     const now = new Date()
-    await this.ctx.database.create('memesluna_endpoints', {
+    await this.ctx.database.create('chatluna_memes_endpoints', {
       id,
       name: input.name,
       group: input.group || '默认分组',
@@ -1720,7 +1718,7 @@ export class MemesLunaService extends Service {
       return false
     }
 
-    const payload: Partial<MemesLunaEndpointRow> = {
+    const payload: Partial<ChatLunaMemesEndpointRow> = {
       updated_at: new Date(),
     }
 
@@ -1739,7 +1737,7 @@ export class MemesLunaService extends Service {
     payload.query_params = JSON.stringify([])
     payload.proxy_settings = JSON.stringify({})
 
-    await this.ctx.database.set('memesluna_endpoints', { name }, payload)
+    await this.ctx.database.set('chatluna_memes_endpoints', { name }, payload)
     this.notifyImagesChanged()
     return true
   }
@@ -1749,16 +1747,16 @@ export class MemesLunaService extends Service {
   }
 
   private async deleteEndpointUnlocked(name: string): Promise<boolean> {
-    const before = await this.ctx.database.get('memesluna_endpoints', { name })
+    const before = await this.ctx.database.get('chatluna_memes_endpoints', { name })
     if (!before.length) {
       return false
     }
-    await this.ctx.database.remove('memesluna_endpoints', { name })
+    await this.ctx.database.remove('chatluna_memes_endpoints', { name })
     this.notifyImagesChanged()
     return true
   }
 
-  /** 给 ChatLuna 的随机图清单：表情包和外部图源用法相同，合成一张列表，每项给出完整地址。 */
+  /** 给 ChatLuna 的随机图清单：表情包和外部图源合成一张列表，每项给出完整地址。 */
   async buildRouteInventory(routeBaseUrl: string): Promise<string> {
     const [collections, endpoints] = await Promise.all([this.getCollectionInfos(), this.getEndpoints()])
     const routes = [
@@ -1773,11 +1771,11 @@ export class MemesLunaService extends Service {
 
 declare module 'koishi' {
   interface Context {
-    memesluna: MemesLunaService
+    chatluna_memes: ChatLunaMemesService
   }
 
   interface Tables {
-    memesluna_endpoints: {
+    chatluna_memes_endpoints: {
       id: string
       name: string
       group: string
@@ -1791,7 +1789,7 @@ declare module 'koishi' {
       created_at: Date
       updated_at: Date
     }
-    memesluna_images: {
+    chatluna_memes_images: {
       id: string
       collection: string
       index: number
@@ -1807,7 +1805,7 @@ declare module 'koishi' {
       created_at: Date
     }
 
-    memesluna_staged_images: {
+    chatluna_memes_staged_images: {
       id: string
       filename: string
       original_name: string

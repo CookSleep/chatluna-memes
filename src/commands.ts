@@ -9,12 +9,12 @@ import { parseJsonStringArray } from './utils'
 const MANAGE_AUTHORITY = 5
 
 export function registerCommands(ctx: Context, config: Settings) {
-  const root = ctx.command('memesluna', 'MemesLuna 命令')
+  const root = ctx.command('chatluna.memes', 'ChatLuna Memes 表情包')
 
   root
     .subcommand('.list', '查看当前可用表情路由')
     .action(async ({ session }) => {
-      const service = ctx.memesluna
+      const service = ctx.chatluna_memes
       await service.ready
 
       const [collections, endpoints] = await Promise.all([
@@ -40,15 +40,15 @@ export function registerCommands(ctx: Context, config: Settings) {
   const stoleAction = async (session: any, name: string) => {
     if (!session) return
     if (!name) {
-      return '使用方式：引用图片并回复 "偷了 [表情包名称]" 或 "memesluna stole [表情包名称]"'
+      return '使用方式：引用图片并回复 "偷了 [表情包名称]" 或 "chatluna.memes.stole [表情包名称]"'
     }
 
-    const service = ctx.memesluna
+    const service = ctx.chatluna_memes
     await service.ready
 
     try {
       if (!(await service.collectionExists(name))) {
-        return `表情包合集 "${name}" 不存在，请先在 Koishi Console 的 MemesLuna 页面创建。`
+        return `表情包合集 "${name}" 不存在，请先在 Koishi Console 的 ChatLuna Memes 页面创建。`
       }
     } catch (err) {
       return `检查表情包失败: ${(err as Error).message}`
@@ -88,7 +88,7 @@ export function registerCommands(ctx: Context, config: Settings) {
         successCount++
       } catch (err) {
         failedCount++
-        ctx.logger('memesluna').error(`Failed to steal image from URL: ${url}`, err)
+        ctx.logger('chatluna-memes').error(`Failed to steal image from URL: ${url}`, err)
       }
     }
 
@@ -114,6 +114,7 @@ export function registerCommands(ctx: Context, config: Settings) {
 
   root
     .subcommand('.stole <name:string>', '偷取引用消息中的图片并存入指定表情包', { authority: MANAGE_AUTHORITY })
+    .alias('偷了')
     .action(async ({ session }, name) => {
       return await stoleAction(session, name)
     })
@@ -122,15 +123,14 @@ export function registerCommands(ctx: Context, config: Settings) {
     .subcommand('.tagall', '批量为以往的图片自动进行 AI 语义打标', { authority: MANAGE_AUTHORITY })
     .option('force', '-f 强制为已打标的图片重新进行 AI 标注')
     .action(async ({ session, options }) => {
-      const service = ctx.memesluna
+      const service = ctx.chatluna_memes
       await service.ready
       const annotator = service.annotator
-      if (!annotator) return 'AI 标注器未就绪，请先在控制台 MemesLuna 页面的「配置」中选择标注模型。'
+      if (!annotator) return 'AI 标注器未就绪，请先在控制台 ChatLuna Memes 页面的「配置」中选择标注模型。'
 
-      const images = await ctx.database.get('memesluna_images', {})
+      const images = await ctx.database.get('chatluna_memes_images', {})
       const force = !!options?.force
-      // 批量 AI 标注只处理实际保存在本地合集目录中的图片。
-      // 外链图片仍可用于路由分发，但不应计入 tagall 的处理数量。
+      // 外链不下载，只标注本地图片。
       const localImages = images.filter((img) => img.type === 'local')
       const taggedLocalCount = localImages.filter((img) => parseJsonStringArray(img.tags).length > 0).length
       const targets = force ? localImages : localImages.filter((img) => parseJsonStringArray(img.tags).length === 0)
@@ -166,7 +166,7 @@ export function registerCommands(ctx: Context, config: Settings) {
     .alias('.cleartags')
     .option('collection', '-c <collection:string> 仅清空指定合集的图片标签')
     .action(async ({ session, options }) => {
-      const service = ctx.memesluna
+      const service = ctx.chatluna_memes
       await service.ready
 
       const filter: any = {}
@@ -178,7 +178,7 @@ export function registerCommands(ctx: Context, config: Settings) {
         filter.collection = options.collection
       }
 
-      const images = await ctx.database.get('memesluna_images', filter)
+      const images = await ctx.database.get('chatluna_memes_images', filter)
       const targets = images.filter((img) => parseJsonStringArray(img.tags).length > 0)
 
       if (targets.length === 0) {
@@ -195,7 +195,7 @@ export function registerCommands(ctx: Context, config: Settings) {
           await service.updateImageAnnotation(row.id, undefined, [])
           successCount++
         } catch (err) {
-          ctx.logger('memesluna').error(`Failed clearing tag for ${row.filename}:`, err)
+          ctx.logger('chatluna-memes').error(`Failed clearing tag for ${row.filename}:`, err)
         }
       }
 

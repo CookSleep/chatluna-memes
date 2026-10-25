@@ -9,7 +9,7 @@ import { dashboardContextKey } from './composables/dashboardContext'
 import AppLayout from './components/layout/AppLayout.vue'
 
 export default defineComponent({
-  name: 'MemesLunaDashboard',
+  name: 'ChatLunaMemesDashboard',
   components: {
     AppLayout,
   },

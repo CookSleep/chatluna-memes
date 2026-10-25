@@ -1,17 +1,17 @@
 <template>
-  <section class="ml-view">
-    <header class="ml-view-head">
-      <div class="ml-view-title">
-        <h1 class="ml-title">暂缓区</h1>
-        <div class="ml-actions">
-          <button type="button" class="ml-btn" @click="refreshStagedImages"><Icon name="refresh" />刷新</button>
-          <button v-if="stagedImages.length" type="button" class="ml-btn is-danger-soft" @click="confirmDeleteAllStagedImages"><Icon name="trash" />全部清空</button>
+  <section class="cm-view">
+    <header class="cm-view-head">
+      <div class="cm-view-title">
+        <h1 class="cm-title">暂缓区</h1>
+        <div class="cm-actions">
+          <button type="button" class="cm-btn" @click="refreshStagedImages"><Icon name="refresh" />刷新</button>
+          <button v-if="stagedImages.length" type="button" class="cm-btn is-danger-soft" @click="confirmDeleteAllStagedImages"><Icon name="trash" />全部清空</button>
         </div>
       </div>
-      <p class="ml-subtitle">群聊里自动收集的高频图片，以及上传时被拦下的超大图片，会先放在这里。<br />归档到表情包后才会被使用，不需要的直接删除。</p>
+      <p class="cm-subtitle">群聊里自动收集的高频图片，以及上传时被拦下的超大图片，会先放在这里。<br />归档到表情包后才会被使用，不需要的直接删除。</p>
     </header>
 
-    <div class="ml-callout" :class="{ 'is-info': autoCollect?.enabled }">
+    <div class="cm-callout" :class="{ 'is-info': autoCollect?.enabled }">
       <Icon name="info" />
       <span v-if="!autoCollect">正在读取自动收集配置…</span>
       <span v-else-if="autoCollect.enabled">
@@ -21,12 +21,12 @@
       <span v-else>
         自动收集未开启，群聊里的图片不会进入暂缓区。<br />
         目前只有一种情况会进来：在管理页上传图片时，超过 10 MB 的会先放在这里等你确认。<br />
-        想收集群聊里的高频表情，可以在<button type="button" class="ml-inline-link" @click="openConfig('ml-config-collect')">「配置」</button>中开启自动收集。
+        想收集群聊里的高频表情，可以在<button type="button" class="cm-inline-link" @click="openConfig('cm-config-collect')">「配置」</button>中开启自动收集。
       </span>
     </div>
 
-    <div v-if="!stagedImages.length" class="ml-empty">
-      <div class="ml-empty-icon">
+    <div v-if="!stagedImages.length" class="cm-empty">
+      <div class="cm-empty-icon">
         <Icon name="inbox" />
       </div>
       <h3>暂缓区是空的</h3>
@@ -34,8 +34,8 @@
     </div>
 
     <template v-else>
-      <div class="ml-toolbar">
-        <div class="ml-segmented is-filter">
+      <div class="cm-toolbar">
+        <div class="cm-segmented is-filter">
           <button type="button" :class="{ 'is-active': stagingViewMode === 'all' }" @click="setStagingViewMode('all')">
             全部 <span>{{ filteredStagedImages.length }}</span>
           </button>
@@ -43,22 +43,22 @@
             按相似分组 <span>{{ similarLoading ? '…' : filteredSimilarGroups.length }}</span>
           </button>
         </div>
-        <label class="ml-search">
+        <label class="cm-search">
           <Icon name="search" />
           <input v-model="stagingSearch" placeholder="搜索文件名、来源或原因" />
         </label>
-        <div class="ml-toolbar-end is-compact">
-          <button type="button" class="ml-btn" @click="toggleSelectAllStaged">
+        <div class="cm-toolbar-end is-compact">
+          <button type="button" class="cm-btn" @click="toggleSelectAllStaged">
             <Icon name="selectAll" />{{ areAllCurrentPageStagedSelected ? '取消全选' : '全选' }}
           </button>
         </div>
       </div>
 
       <template v-if="stagingViewMode === 'all'">
-        <div v-if="!filteredStagedImages.length" class="ml-empty is-compact">
+        <div v-if="!filteredStagedImages.length" class="cm-empty is-compact">
           <h3>没有匹配的图片</h3>
         </div>
-        <div v-else class="ml-image-grid">
+        <div v-else class="cm-image-grid">
           <StagedCard
             v-for="item in filteredStagedImages"
             :key="item.id"
@@ -71,26 +71,26 @@
       </template>
 
       <template v-else>
-        <div v-if="similarLoading" class="ml-loading is-inline"><div class="ml-spinner is-small"></div><p>正在比对相似图片…</p></div>
-        <div v-else-if="!filteredSimilarGroups.length" class="ml-empty is-compact">
+        <div v-if="similarLoading" class="cm-loading is-inline"><div class="cm-spinner is-small"></div><p>正在比对相似图片…</p></div>
+        <div v-else-if="!filteredSimilarGroups.length" class="cm-empty is-compact">
           <h3>没有发现相似图片</h3>
           <p>{{ similarMessage || '每张图都不一样，直接在「全部」里处理即可。' }}</p>
         </div>
         <template v-else>
-        <section v-for="group in filteredSimilarGroups" :key="group.id" class="ml-group">
-          <header class="ml-group-head">
+        <section v-for="group in filteredSimilarGroups" :key="group.id" class="cm-group">
+          <header class="cm-group-head">
             <div>
               <h3>相似 {{ group.label }}</h3>
-              <p class="ml-hint">{{ group.items.length }} 张，相似度不低于 {{ formatPercent(group.similarity) }}</p>
+              <p class="cm-hint">{{ group.items.length }} 张，相似度不低于 {{ formatPercent(group.similarity) }}</p>
             </div>
-            <div class="ml-actions">
-              <button type="button" class="ml-btn is-small" @click="selectGroup(group)">
+            <div class="cm-actions">
+              <button type="button" class="cm-btn is-small" @click="selectGroup(group)">
                 <Icon name="selectAll" />{{ group.items.every((item) => isStagedSelected(item.id)) ? '取消选择本组' : '选择本组' }}
               </button>
-              <button type="button" class="ml-btn is-small" @click="keepOneInGroup(group)"><Icon name="keep" />只保留第一张</button>
+              <button type="button" class="cm-btn is-small" @click="keepOneInGroup(group)"><Icon name="keep" />只保留第一张</button>
             </div>
           </header>
-          <div class="ml-image-grid">
+          <div class="cm-image-grid">
             <StagedCard
               v-for="item in group.items"
               :key="item.id"
@@ -107,9 +107,9 @@
     </template>
 
     <SelectionBar :count="selectedStagedIds.size" @clear="clearSelectedStaged">
-      <button type="button" class="ml-bar-btn" @click="toggleSelectAllStaged"><Icon name="selectAll" />{{ areAllCurrentPageStagedSelected ? '取消全选' : '全选' }}</button>
-      <button type="button" class="ml-bar-btn is-primary" @click="batchPromoteStagedImages()"><Icon name="archive" />归档到…</button>
-      <button type="button" class="ml-bar-btn is-danger" @click="batchDeleteStagedImages"><Icon name="trash" />删除</button>
+      <button type="button" class="cm-bar-btn" @click="toggleSelectAllStaged"><Icon name="selectAll" />{{ areAllCurrentPageStagedSelected ? '取消全选' : '全选' }}</button>
+      <button type="button" class="cm-bar-btn is-primary" @click="batchPromoteStagedImages()"><Icon name="archive" />归档到…</button>
+      <button type="button" class="cm-bar-btn is-danger" @click="batchDeleteStagedImages"><Icon name="trash" />删除</button>
     </SelectionBar>
   </section>
 </template>

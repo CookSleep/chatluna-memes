@@ -1,12 +1,12 @@
 <template>
-  <article class="ml-image-card ml-staged-card" :class="{ 'is-selected': selected }" @click="$emit('pick', $event)">
-    <div class="ml-image-thumb" :title="selecting ? '点击切换选择' : '点击查看原图'">
+  <article class="cm-image-card cm-staged-card" :class="{ 'is-selected': selected }" @click="$emit('pick', $event)">
+    <div class="cm-image-thumb" :title="selecting ? '点击切换选择' : '点击查看原图'">
       <AuthenticatedImage :src="src" alt="" />
-      <span v-if="badge" class="ml-badge is-floating is-accent" :title="`与另外 ${badge.size - 1} 张相似`">相似 {{ badge.label }}</span>
+      <span v-if="badge" class="cm-badge is-floating is-accent" :title="`与另外 ${badge.size - 1} 张相似`">相似 {{ badge.label }}</span>
     </div>
     <button
       type="button"
-      class="ml-check"
+      class="cm-check"
       :class="{ 'is-checked': selected }"
       :aria-pressed="selected"
       :title="selected ? '取消选择' : '选择（也可以 Ctrl / ⌘ + 点击图片）'"
@@ -15,14 +15,14 @@
       <span v-if="index">{{ index }}</span>
       <Icon v-else name="check" />
     </button>
-    <div class="ml-image-info">
-      <div class="ml-image-name" :title="item.originalName || item.filename">{{ item.originalName || item.filename }}</div>
-      <div class="ml-image-sub" :title="source">{{ source }}</div>
-      <div class="ml-image-sub" :title="item.reason">{{ item.reason || '待人工确认' }}</div>
-      <div class="ml-image-sub">{{ size }} · {{ date }}</div>
-      <div class="ml-staged-actions" @click.stop>
-        <button type="button" class="ml-btn is-small" :disabled="busy" @click="$emit('promote')"><Icon name="archive" />归档到…</button>
-        <button type="button" class="ml-icon-btn is-small is-danger" title="删除" :disabled="busy" @click="$emit('remove')"><Icon name="trash" /></button>
+    <div class="cm-image-info">
+      <div class="cm-image-name" :title="item.originalName || item.filename">{{ item.originalName || item.filename }}</div>
+      <div class="cm-image-sub" :title="source">{{ source }}</div>
+      <div class="cm-image-sub" :title="item.reason">{{ item.reason || '待人工确认' }}</div>
+      <div class="cm-image-sub">{{ size }} · {{ date }}</div>
+      <div class="cm-staged-actions" @click.stop>
+        <button type="button" class="cm-btn is-small" :disabled="busy" @click="$emit('promote')"><Icon name="archive" />归档到…</button>
+        <button type="button" class="cm-icon-btn is-small is-danger" title="删除" :disabled="busy" @click="$emit('remove')"><Icon name="trash" /></button>
       </div>
     </div>
   </article>

@@ -3,8 +3,8 @@ import { h } from 'vue'
 import Dashboard from './Dashboard.vue'
 
 // 右下角卷起的表情包贴纸。
-const MemesLunaIcon = {
-  name: 'MemesLunaIcon',
+const ChatLunaMemesIcon = {
+  name: 'ChatLunaMemesIcon',
   render() {
     return h(
       'svg',
@@ -28,13 +28,13 @@ const MemesLunaIcon = {
   },
 }
 
-icons.register('MemesLunaEmoji', MemesLunaIcon)
+icons.register('ChatLunaMemesEmoji', ChatLunaMemesIcon)
 
 export default (ctx: any) => {
   ctx.page({
-    name: 'MemesLuna',
-    path: '/memesluna',
-    icon: 'MemesLunaEmoji',
+    name: 'ChatLuna Memes',
+    path: '/chatluna-memes',
+    icon: 'ChatLunaMemesEmoji',
     component: Dashboard,
     authority: 1,
     order: 500,

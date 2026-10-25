@@ -1,48 +1,52 @@
 import type { Context } from 'koishi'
-import { mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { withStorageLock } from './storage'
-import { applySettingsPatch, diffFromDefaults, migrateLegacyConfig, resolveSettings, type Settings, type SettingsPatchResult } from './settings'
+import { migrateLegacySettings } from './migration'
+import { applySettingsPatch, diffFromDefaults, resolveSettings, type Settings, type SettingsPatchResult } from './settings'
 
-export const SETTINGS_UPDATED = 'memesluna/settings-updated'
+export const SETTINGS_UPDATED = 'chatluna-memes/settings-updated'
 
 /**
- * 设置保存在 data/memesluna/.settings.json，只记录和默认值不同的项。
+ * 设置保存在 data/chatluna-memes/.settings.json，只记录和默认值不同的项。
  * value 是全插件共享的同一个对象，保存时原地更新，读取方总能拿到最新值。
  */
 export class SettingsStore {
   readonly value: Settings
   readonly filename: string
 
-  constructor(private ctx: Context, legacy: unknown) {
-    this.filename = path.resolve(ctx.baseDir, 'data/memesluna/.settings.json')
-    this.value = this.load(legacy)
+  constructor(private ctx: Context) {
+    this.filename = path.resolve(ctx.baseDir, 'data/chatluna-memes/.settings.json')
+    this.value = this.load()
   }
 
   // 插件启动时同步读取，保证各功能挂载前设置已就绪。
-  private load(legacy: unknown): Settings {
+  private load(): Settings {
     let raw: string
     try {
       raw = readFileSync(this.filename, 'utf8')
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-      const migrated = migrateLegacyConfig(legacy)
+      // 只在第一次启动（数据目录还不存在）时迁移，之后删掉设置文件就是恢复默认。
+      const firstRun = !existsSync(path.dirname(this.filename))
+      const migrated = firstRun ? migrateLegacySettings(this.ctx.baseDir, (this.ctx as any).loader?.config?.plugins) : null
+      const settings = migrated ?? resolveSettings({})
       try {
         mkdirSync(path.dirname(this.filename), { recursive: true })
-        writeFileSync(this.filename, JSON.stringify(diffFromDefaults(migrated), null, 2), { flag: 'wx', mode: 0o600 })
-        this.ctx.logger('memesluna').info('已把插件配置迁移到管理页的「配置」中')
+        writeFileSync(this.filename, JSON.stringify(diffFromDefaults(settings), null, 2), { flag: 'wx', mode: 0o600 })
+        if (migrated) this.ctx.logger('chatluna-memes').info('已迁移 memesluna 的设置')
       } catch (writeError) {
-        this.ctx.logger('memesluna').warn('保存迁移后的设置失败:', writeError)
+        this.ctx.logger('chatluna-memes').warn('保存设置失败:', writeError)
       }
-      return migrated
+      return settings
     }
     try {
       return resolveSettings(JSON.parse(raw))
     } catch {
       // 不覆盖损坏的文件，留给用户排查；下次在管理页保存时才会写入新内容。
-      this.ctx.logger('memesluna').warn(`设置文件 ${this.filename} 无法解析，暂时使用默认设置`)
+      this.ctx.logger('chatluna-memes').warn(`设置文件 ${this.filename} 无法解析，暂时使用默认设置`)
       return resolveSettings({})
     }
   }

@@ -1,5 +1,5 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
-import { sendMemesLuna } from './rpc'
+import { sendChatLunaMemes } from './rpc'
 import { adminFetch } from './adminFetch'
 import { CollectionPageLoader } from './collectionResources'
 import { settledBatch } from './batch'
@@ -43,11 +43,11 @@ interface PreviewRouteRow {
   previewImages: string[]
 }
 
-type MainMenu = 'config' | 'resources' | 'distribution' | 'staging' | 'settings'
+type MainMenu = 'config' | 'resources' | 'distribution' | 'staging' | 'preview'
 
 export function useDashboard() {
   // 导航
-  const activeMenu = ref<MainMenu>(readSessionOption('memesluna_active_menu', 'resources', ['config', 'resources', 'distribution', 'staging', 'settings']))
+  const activeMenu = ref<MainMenu>(readSessionOption('chatluna_memes_active_menu', 'resources', ['config', 'resources', 'distribution', 'staging', 'preview']))
 
   const { toast, showToast } = useToast()
   const dialogApi = useDialog()
@@ -59,7 +59,7 @@ export function useDashboard() {
   const settings = ref<ConsoleSettingsSummary | null>(null)
 
   // 基础数据
-  const backendPath = ref('/memesluna')
+  const backendPath = ref('/chatluna-memes')
   const baseUrl = ref('http://localhost:5140')
   const endpoints = ref<EndpointInfo[]>([])
   const collections = ref<CollectionInfo[]>([])
@@ -84,7 +84,7 @@ export function useDashboard() {
   })
   const collectionPreviews = reactive<Record<string, CollectionPreviewState>>({})
   const galleryTotal = ref(0)
-  const pageLoader = new CollectionPageLoader((name, query) => sendMemesLuna('memesluna/getCollectionResources', name, query))
+  const pageLoader = new CollectionPageLoader((name, query) => sendChatLunaMemes('chatluna-memes/getCollectionResources', name, query))
   const currentGalleryTab = ref<'all' | 'local' | 'external'>('all')
   const showImportLinks = ref(false)
   const selectedImageSet = ref<Set<string>>(new Set())
@@ -277,17 +277,17 @@ export function useDashboard() {
     if (menu === activeMenu.value) return
     if (activeMenu.value === 'config' && !await config.confirmLeaveConfig()) return
     activeMenu.value = menu
-    sessionStorage.setItem('memesluna_active_menu', menu)
-    if (menu === 'settings') {
-      fetchSettingsPreview()
-    }
-    if (menu === 'config') {
-      void config.loadConfig()
-    }
+    sessionStorage.setItem('chatluna_memes_active_menu', menu)
     if (menu === 'staging') {
       refreshStagedImages()
     } else {
       clearSelectedStaged()
+    }
+    if (menu === 'config') {
+      void config.loadConfig()
+    }
+    if (menu === 'preview') {
+      await fetchSettingsPreview()
     }
   }
 
@@ -295,6 +295,13 @@ export function useDashboard() {
   async function openConfig(target: string) {
     config.configTarget.value = target
     await switchMainMenu('config')
+  }
+
+  /** 跳到「预览」并定位到指定卡片。等数据加载完再滚动，否则上方卡片变高会把目标挤走。 */
+  const previewTarget = ref<string | null>(null)
+  async function openPreview(target: string) {
+    await switchMainMenu('preview')
+    if (activeMenu.value === 'preview') previewTarget.value = target
   }
 
   function getBackendBaseUrl(): string {
@@ -361,7 +368,7 @@ export function useDashboard() {
     collectionPreviews[collection.name].loading = true
 
     try {
-      const data = await sendMemesLuna('memesluna/getCollectionResources', collection.name, { limit: 9 })
+      const data = await sendChatLunaMemes('chatluna-memes/getCollectionResources', collection.name, { limit: 9 })
       collectionPreviews[collection.name].images = data.items.map((item) => item.type === 'local'
         ? getLocalImageApiUrl(collection.name, item.filename) : item.value)
 
@@ -379,11 +386,10 @@ export function useDashboard() {
   // 从后端同步状态
   async function fetchState() {
     try {
-      // WebUI 始终运行在 Koishi 内嵌服务器上，直接用 window.location.origin 作为 baseUrl
-      // selfUrl 是机器人发图用的公网地址，不能用于 WebUI 的 HTTP 接口请求
+      // 管理页和接口在同一个 Koishi 服务上，直接用当前页面的 origin；selfUrl 是机器人发图用的对外地址，不一定能从浏览器访问。
       baseUrl.value = window.location.origin
 
-      const state = await sendMemesLuna('memesluna/getState')
+      const state = await sendChatLunaMemes('chatluna-memes/getState')
       if (state) {
         if (state.backendPath) backendPath.value = state.backendPath
         endpoints.value = Array.isArray(state.endpoints) ? state.endpoints : []
@@ -454,7 +460,7 @@ export function useDashboard() {
 
     try {
       loading.value = true
-      const success = await sendMemesLuna('memesluna/createCollection', name)
+      const success = await sendChatLunaMemes('chatluna-memes/createCollection', name)
       if (!success) {
         showToast(`已存在名为「${name}」的表情包`, 'error')
         return
@@ -475,7 +481,7 @@ export function useDashboard() {
 
     try {
       loading.value = true
-      await sendMemesLuna('memesluna/deleteCollection', name)
+      await sendChatLunaMemes('chatluna-memes/deleteCollection', name)
       showToast(`已删除「${name}」`, 'success')
       currentCollection.value = null
       await fetchState()
@@ -493,7 +499,7 @@ export function useDashboard() {
     detailResources.links = []
     galleryTotal.value = 0
     currentCollection.value = item
-    sessionStorage.setItem('memesluna_active_collection', item.name)
+    sessionStorage.setItem('chatluna_memes_active_collection', item.name)
     externalLinksText.value = ''
     gallerySearch.value = ''
     gallerySort.value = 'name'
@@ -512,7 +518,7 @@ export function useDashboard() {
     detailResources.images = []
     detailResources.links = []
     galleryTotal.value = 0
-    sessionStorage.removeItem('memesluna_active_collection')
+    sessionStorage.removeItem('chatluna_memes_active_collection')
     apiPreviewUrl.value = ''
     clearSelectedImages()
   }
@@ -608,12 +614,12 @@ export function useDashboard() {
     let renamedDone = false
     try {
       if (renamed) {
-        if (!await sendMemesLuna('memesluna/renameCollection', oldName, name)) throw new Error('表情包不存在，可能已被删除')
+        if (!await sendChatLunaMemes('chatluna-memes/renameCollection', oldName, name)) throw new Error('表情包不存在，可能已被删除')
         renamedDone = true
         collectionEditor.original = name
       }
       const previous = collections.value.find((item) => item.name === oldName)?.description || ''
-      if (description !== previous) await sendMemesLuna('memesluna/setCollectionDescription', name, description)
+      if (description !== previous) await sendChatLunaMemes('chatluna-memes/setCollectionDescription', name, description)
       collectionEditor.open = false
       showToast('已保存表情包信息', 'success')
       await syncCollectionAfterEdit(oldName, name, renamed)
@@ -631,7 +637,7 @@ export function useDashboard() {
     const match = collections.value.find((item) => item.name === name)
     if (!match) return
     currentCollection.value = match
-    sessionStorage.setItem('memesluna_active_collection', name)
+    sessionStorage.setItem('chatluna_memes_active_collection', name)
     if (renamed) await loadCollectionResources(name)
   }
 
@@ -766,7 +772,7 @@ export function useDashboard() {
 
     try {
       loading.value = true
-      const count = await sendMemesLuna('memesluna/addLinks', currentCollection.value.name, text)
+      const count = await sendChatLunaMemes('chatluna-memes/addLinks', currentCollection.value.name, text)
       showToast(count ? `已导入 ${count} 个外链` : '没有新的外链（可能格式不对或已存在）', count ? 'success' : 'error')
       externalLinksText.value = ''
       if (count) showImportLinks.value = false
@@ -784,7 +790,7 @@ export function useDashboard() {
 
     try {
       loading.value = true
-      await sendMemesLuna('memesluna/deleteLink', collectionName, link)
+      await sendChatLunaMemes('chatluna-memes/deleteLink', collectionName, link)
       showToast('已删除外链', 'success')
       await loadCollectionResources(collectionName)
       await fetchState()
@@ -801,7 +807,7 @@ export function useDashboard() {
 
     try {
       loading.value = true
-      await sendMemesLuna('memesluna/deleteLocalImage', collectionName, filename)
+      await sendChatLunaMemes('chatluna-memes/deleteLocalImage', collectionName, filename)
       showToast('已删除图片', 'success')
       await loadCollectionResources(collectionName)
       await fetchState()
@@ -828,8 +834,8 @@ export function useDashboard() {
       const source = currentCollection.value.name
       const results = await settledBatch(names, async (value) => {
         const ok = isLinkValue(value)
-          ? await sendMemesLuna('memesluna/deleteLink', source, value)
-          : await sendMemesLuna('memesluna/deleteLocalImage', source, value)
+          ? await sendChatLunaMemes('chatluna-memes/deleteLink', source, value)
+          : await sendChatLunaMemes('chatluna-memes/deleteLocalImage', source, value)
         if (!ok) throw new Error('删除失败')
       })
       const failed = names.filter((_, index) => results[index].status === 'rejected')
@@ -849,7 +855,7 @@ export function useDashboard() {
     if (!target) return
     try {
       loading.value = true
-      const newFilename = await sendMemesLuna('memesluna/moveLocalImage', source, target, filename)
+      const newFilename = await sendChatLunaMemes('chatluna-memes/moveLocalImage', source, target, filename)
       if (newFilename) {
         showToast(`已移动到「${target}」`, 'success')
         await loadCollectionResources(source)
@@ -880,10 +886,10 @@ export function useDashboard() {
       loading.value = true
       const results = await settledBatch(names, async (value) => {
         if (isLinkValue(value)) {
-          if (!await sendMemesLuna('memesluna/moveLink', source, target, value)) throw new Error('移动失败')
+          if (!await sendChatLunaMemes('chatluna-memes/moveLink', source, target, value)) throw new Error('移动失败')
           return
         }
-        if (!await sendMemesLuna('memesluna/moveLocalImage', source, target, value)) throw new Error('移动失败')
+        if (!await sendChatLunaMemes('chatluna-memes/moveLocalImage', source, target, value)) throw new Error('移动失败')
       })
       const failed = names.filter((_, index) => results[index].status === 'rejected')
       showToast(failed.length ? `已移动 ${names.length - failed.length} 张到「${target}」，${failed.length} 张失败` : `已移动 ${names.length} 张到「${target}」`, failed.length ? 'error' : 'success')
@@ -926,9 +932,9 @@ export function useDashboard() {
     loading.value = true
     await fetchState()
 
-    // 恢复刷新前打开的表情包详情
+    // 恢复刷新前打开的表情包详情。
     if (activeMenu.value === 'resources') {
-      const savedCol = sessionStorage.getItem('memesluna_active_collection')
+      const savedCol = sessionStorage.getItem('chatluna_memes_active_collection')
       if (savedCol) {
         const col = collections.value.find(c => c.name === savedCol)
         if (col) {
@@ -937,7 +943,7 @@ export function useDashboard() {
       }
     } else if (activeMenu.value === 'staging') {
       await refreshStagedImages()
-    } else if (activeMenu.value === 'settings') {
+    } else if (activeMenu.value === 'preview') {
       await fetchSettingsPreview()
     } else if (activeMenu.value === 'config') {
       await config.loadConfig()
@@ -1040,6 +1046,8 @@ export function useDashboard() {
     fileInput,
     switchMainMenu,
     openConfig,
+    openPreview,
+    previewTarget,
     getRouteDisplayPath,
     getBaseRedirectUrl,
     getStagedImageUrl,

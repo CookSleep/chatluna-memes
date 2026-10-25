@@ -3,7 +3,7 @@ import path from 'path'
 import { Context } from 'koishi'
 import type { Settings } from './settings'
 import {
-  type MemesLunaService,
+  type ChatLunaMemesService,
 } from './service'
 import {
   parseJsonStringArray,
@@ -14,7 +14,7 @@ import { ADMIN_AUTHORITY, requireConsoleAdmin } from './admin-auth'
 import type { ImageMetadataPayload, CollectionPageQuery, ConsoleModelOption } from './console-rpc'
 import type { SettingsStore } from './settings-store'
 
-export function applyConsole(ctx: Context, config: Settings, store: SettingsStore, service: MemesLunaService) {
+export function applyConsole(ctx: Context, config: Settings, store: SettingsStore, service: ChatLunaMemesService) {
   if (!ctx.console) {
     return
   }
@@ -22,7 +22,7 @@ export function applyConsole(ctx: Context, config: Settings, store: SettingsStor
   const consoleService = ctx.console as any
 
   const packageBase = path.resolve(__dirname, '..')
-  const installedBase = path.resolve(ctx.baseDir, 'node_modules', 'koishi-plugin-memesluna')
+  const installedBase = path.resolve(ctx.baseDir, 'node_modules', 'koishi-plugin-chatluna-memes')
   const consoleBase = existsSync(installedBase) ? installedBase : packageBase
   const devPath = path.resolve(consoleBase, 'client/index.ts')
   const prodPath = path.resolve(consoleBase, 'dist')
@@ -47,7 +47,7 @@ export function applyConsole(ctx: Context, config: Settings, store: SettingsStor
   })
 
   addListener(
-    'memesluna/getState',
+    'chatluna-memes/getState',
     withReady(async () => {
       const endpoints = await service.getEndpoints()
       const detailedCollections = await service.getCollectionInfos()
@@ -63,7 +63,6 @@ export function applyConsole(ctx: Context, config: Settings, store: SettingsStor
           annotatorReady: !!service.annotator,
           autoAnnotate: config.autoAnnotate,
           stagingRetentionDays: config.stagingRetentionDays || 0,
-          // 与 auto-collect.ts 中的默认值保持一致。
           autoCollect: {
             enabled: !!config.autoCollect,
             windowMinutes: Math.max(1, config.emojiFrequencyWindowMinutes || 10),
@@ -77,7 +76,7 @@ export function applyConsole(ctx: Context, config: Settings, store: SettingsStor
     })
   )
 
-  addListener('memesluna/getSettings', () => ({
+  addListener('chatluna-memes/getSettings', () => ({
     settings: { ...config },
     models: listChatModels(ctx),
     chatlunaAvailable: !!ctx.get('chatluna'),
@@ -85,52 +84,52 @@ export function applyConsole(ctx: Context, config: Settings, store: SettingsStor
     serverSelfUrl: ((ctx.get('server') as any)?.selfUrl || '').replace(/\/+$/, ''),
   }))
 
-  addListener('memesluna/updateSettings', (patch: unknown) => store.update(patch))
+  addListener('chatluna-memes/updateSettings', (patch: unknown) => store.update(patch))
 
   addListener(
-    'memesluna/createCollection',
+    'chatluna-memes/createCollection',
     withReady(async (name: string) => {
       return await service.createCollection(name)
     })
   )
 
   addListener(
-    'memesluna/deleteCollection',
+    'chatluna-memes/deleteCollection',
     withReady(async (name: string) => {
       return await service.deleteCollection(name)
     })
   )
 
   addListener(
-    'memesluna/setCollectionDescription',
+    'chatluna-memes/setCollectionDescription',
     withReady(async (name: string, description: string) => {
       return await service.setCollectionDescription(name, description)
     })
   )
 
   addListener(
-    'memesluna/renameCollection',
+    'chatluna-memes/renameCollection',
     withReady(async (name: string, newName: string) => {
       return await service.renameCollection(name, newName)
     })
   )
 
   addListener(
-    'memesluna/deleteLocalImage',
+    'chatluna-memes/deleteLocalImage',
     withReady(async (collectionName: string, filename: string) => {
       return await service.deleteImageFromCollection(collectionName, filename)
     })
   )
 
   addListener(
-    'memesluna/moveLocalImage',
+    'chatluna-memes/moveLocalImage',
     withReady(async (sourceCollection: string, targetCollection: string, filename: string) => {
       return await service.moveImageToCollection(sourceCollection, targetCollection, filename)
     })
   )
 
   addListener(
-    'memesluna/addLinks',
+    'chatluna-memes/addLinks',
     withReady(async (collectionName: string, linksText: string) => {
       const links = linksText
         .split(/\r?\n/g)
@@ -141,55 +140,55 @@ export function applyConsole(ctx: Context, config: Settings, store: SettingsStor
   )
 
   addListener(
-    'memesluna/moveLink',
+    'chatluna-memes/moveLink',
     withReady(async (sourceCollection: string, targetCollection: string, link: string) => {
       return await service.moveLinkToCollection(sourceCollection, targetCollection, link)
     })
   )
 
   addListener(
-    'memesluna/deleteLink',
+    'chatluna-memes/deleteLink',
     withReady(async (collectionName: string, link: string) => {
       return await service.removeLinkFromCollection(collectionName, link)
     })
   )
 
   addListener(
-    'memesluna/createEndpoint',
+    'chatluna-memes/createEndpoint',
     withReady(async (payload: any) => {
       return await service.addEndpoint(payload)
     })
   )
 
   addListener(
-    'memesluna/updateEndpoint',
+    'chatluna-memes/updateEndpoint',
     withReady(async (name: string, payload: any) => {
       return await service.updateEndpoint(name, payload)
     })
   )
 
   addListener(
-    'memesluna/deleteEndpoint',
+    'chatluna-memes/deleteEndpoint',
     withReady(async (name: string) => {
       return await service.deleteEndpoint(name)
     })
   )
 
   addListener(
-    'memesluna/getStagedImages',
+    'chatluna-memes/getStagedImages',
     withReady(async () => {
       return await service.getStagedImages()
     })
   )
   addListener(
-    'memesluna/getSimilarStagedImages',
+    'chatluna-memes/getSimilarStagedImages',
     withReady(async () => {
       return await service.getSimilarStagedImages(config.similarityThreshold)
     })
   )
 
   addListener(
-    'memesluna/addStagedImage',
+    'chatluna-memes/addStagedImage',
     withReady(async (payload: any) => {
       return await service.addStagedImageBase64(
         toTrimmedString(payload?.base64),
@@ -201,31 +200,31 @@ export function applyConsole(ctx: Context, config: Settings, store: SettingsStor
   )
 
   addListener(
-    'memesluna/deleteStagedImage',
+    'chatluna-memes/deleteStagedImage',
     withReady(async (id: string) => {
       return await service.deleteStagedImage(id)
     })
   )
 
   addListener(
-    'memesluna/promoteStagedImage',
+    'chatluna-memes/promoteStagedImage',
     withReady(async (id: string, collectionName: string) => {
       return await service.promoteStagedImage(id, collectionName)
     })
   )
-  addListener('memesluna/getBaseUrl', async () => {
+  addListener('chatluna-memes/getBaseUrl', async () => {
     return `${toAbsoluteBaseUrl(ctx, config)}${config.backendPath}`
   })
 
-  addListener('memesluna/deleteAllStagedImages', withReady(async () => {
+  addListener('chatluna-memes/deleteAllStagedImages', withReady(async () => {
     return await service.deleteAllStagedImages()
   }))
 
   addListener(
-    'memesluna/annotateImage',
+    'chatluna-memes/annotateImage',
     withReady(async (collectionName: string, filename: string, options?: { preview?: boolean }) => {
       if (!service.annotator) return { ok: false, error: 'AI 标注器未就绪' }
-      const rows = await ctx.database.get('memesluna_images', { collection: collectionName, filename })
+      const rows = await ctx.database.get('chatluna_memes_images', { collection: collectionName, filename })
       if (!rows.length) return { ok: false, error: '图片不存在' }
       let preview: { aliases: string[]; tags: string[] } | undefined
       // 手动单张标注不排在后台批量任务之后。
@@ -243,21 +242,21 @@ export function applyConsole(ctx: Context, config: Settings, store: SettingsStor
   )
 
   addListener(
-    'memesluna/updateImageMetadata',
+    'chatluna-memes/updateImageMetadata',
     withReady((payload: ImageMetadataPayload) => service.updateImageMetadata(payload))
   )
 
-  addListener('memesluna/getAnnotationStatus', withReady(() => service.getAnnotationStatus()))
-  addListener('memesluna/cancelAnnotations', withReady(() => service.cancelAnnotations()))
+  addListener('chatluna-memes/getAnnotationStatus', withReady(() => service.getAnnotationStatus()))
+  addListener('chatluna-memes/cancelAnnotations', withReady(() => service.cancelAnnotations()))
 
-  addListener('memesluna/getCollectionResources', withReady((name: string, query?: CollectionPageQuery) => {
+  addListener('chatluna-memes/getCollectionResources', withReady((name: string, query?: CollectionPageQuery) => {
     return service.getCollectionResourcePage(name, query)
   }))
 
   addListener(
-    'memesluna/getImageMetadata',
+    'chatluna-memes/getImageMetadata',
     withReady(async (collectionName: string, filename: string) => {
-      const rows = await ctx.database.get('memesluna_images', { collection: collectionName, filename })
+      const rows = await ctx.database.get('chatluna_memes_images', { collection: collectionName, filename })
       if (!rows.length) return { ok: false, error: '图片不存在' }
       return { ok: true, aliases: parseJsonStringArray(rows[0].aliases), tags: parseJsonStringArray(rows[0].tags) }
     })
@@ -275,7 +274,7 @@ function listChatModels(ctx: Context): ConsoleModelOption[] {
       vision: Array.isArray(model.capabilities) && model.capabilities.includes('image_input'),
     }))
   } catch (error) {
-    ctx.logger('memesluna').warn('读取 ChatLuna 模型列表失败:', error)
+    ctx.logger('chatluna-memes').warn('读取 ChatLuna 模型列表失败:', error)
     return []
   }
 }

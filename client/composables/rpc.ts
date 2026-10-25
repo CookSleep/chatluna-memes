@@ -1,11 +1,11 @@
 import { send } from '@koishijs/client'
-import type { MemesLunaConsoleEvents } from '../../src/console-rpc'
+import type { ChatLunaMemesConsoleEvents } from '../../src/console-rpc'
 
-type RpcResult<K extends keyof MemesLunaConsoleEvents> = Awaited<ReturnType<MemesLunaConsoleEvents[K]>>
+type RpcResult<K extends keyof ChatLunaMemesConsoleEvents> = Awaited<ReturnType<ChatLunaMemesConsoleEvents[K]>>
 
-export function sendMemesLuna<K extends keyof MemesLunaConsoleEvents>(
+export function sendChatLunaMemes<K extends keyof ChatLunaMemesConsoleEvents>(
   type: K,
-  ...args: Parameters<MemesLunaConsoleEvents[K]>
+  ...args: Parameters<ChatLunaMemesConsoleEvents[K]>
 ): Promise<RpcResult<K>> {
   const response = send(type, ...args)
   if (!response) return Promise.reject(new Error('Koishi Console 尚未连接'))
