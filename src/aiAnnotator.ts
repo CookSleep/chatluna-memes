@@ -1,5 +1,5 @@
 import { Context } from 'koishi'
-import { Config } from './config'
+import { MAX_RETRY_DELAY, type Settings } from './settings'
 import { ChatLunaChatModel } from 'koishi-plugin-chatluna/llm-core/platform/model'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { getMessageContent } from 'koishi-plugin-chatluna/utils/string'
@@ -136,14 +136,10 @@ export class AIAnnotator {
 
     constructor(
         private ctx: Context,
-        private config: Config
+        private config: Settings
     ) {
         ctx.on('dispose', () => this.dispose())
-        this.usageTracker = new AIUsageTracker(
-            ctx,
-            config.aiDailyLimit,
-            config.aiWarnThreshold
-        )
+        this.usageTracker = new AIUsageTracker(ctx, () => config.aiDailyLimit)
     }
 
     get model() {
@@ -211,9 +207,7 @@ export class AIAnnotator {
                 .replaceAll('{{image_url}}', context.imageUrl || '')
         }
 
-        const humanText = context
-            ? `请分析这张表情图片（文件名: ${context.filename || '未知'}, 合集: ${context.collectionName || '未知'})`
-            : '请分析这张表情图片'
+        const humanText = '请为这张表情包生成标注。'
 
         // 预压缩图片以减小 API 负载并解决大图报错问题
         const compressed = await compressImageForAI(buffer)
@@ -222,7 +216,7 @@ export class AIAnnotator {
             if (signal.aborted) return null
             if (attempt > 0) {
                 const delay =
-                    this.config.aiBackoffBase * Math.pow(2, attempt - 1)
+                    Math.min(this.config.aiRetryDelay * Math.pow(2, attempt - 1), MAX_RETRY_DELAY) * 1000
                 try { await abortableDelay(delay, signal) } catch { return null }
             }
 
@@ -249,9 +243,9 @@ export class AIAnnotator {
                             }))
                         ]
                     })
-                ], { signal: requestSignal, timeout: this.config.aiRequestTimeoutMs || 60000 })
+                ], { signal: requestSignal, timeout: this.config.aiRequestTimeout * 1000 })
 
-                }, signal, this.config.aiRequestTimeoutMs || 60000).catch(async (error) => {
+                }, signal, this.config.aiRequestTimeout * 1000).catch(async (error) => {
                     if (reserved) await this.usageTracker.recordResult(false, day)
                     throw error
                 })

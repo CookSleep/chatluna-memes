@@ -13,18 +13,18 @@ async function tracker(limit: number) {
   const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), 'memesluna-ai-'))
   roots.push(baseDir)
   const ctx = { baseDir, logger: () => ({ warn: vi.fn() }) } as any
-  return { instance: new AIUsageTracker(ctx, limit, 0.8), ctx }
+  return { instance: new AIUsageTracker(ctx, () => limit), ctx }
 }
 
 describe('AI 配额及调度', () => {
   it('并发请求在上限处原子预占，失败及重试计数跨实例保留', async () => {
     const { instance, ctx } = await tracker(3)
-    const sibling = new AIUsageTracker(ctx, 3, 0.8)
+    const sibling = new AIUsageTracker(ctx, () => 3)
     const outcomes = await Promise.all([instance.reserveRequest(), sibling.reserveRequest(true), instance.reserveRequest(), sibling.reserveRequest()])
     expect(outcomes.filter(Boolean)).toHaveLength(3)
     await instance.recordResult(false)
     await instance.recordResult(true)
-    const restored = new AIUsageTracker(ctx, 3, 0.8)
+    const restored = new AIUsageTracker(ctx, () => 3)
     await restored.initialize()
     expect(restored.getStats()).toMatchObject({ requests: 3, retries: 1, successes: 1, failures: 1, remaining: 0 })
     expect(await restored.reserveRequest()).toBe(false)
@@ -87,7 +87,7 @@ describe('AI 配额及调度', () => {
   })
   it('任务队列记录跳过和失败；进度回调异常不重复计数', async () => {
     const queue = new AnnotationQueue()
-    const result = await queue.enqueue([1, 2, 3], 2, async (row) => row === 1 ? 'success' : row === 2 ? 'skipped' : 'fail', 0, () => { throw new Error('callback failed') })
+    const result = await queue.enqueue([1, 2, 3], 2, async (row) => row === 1 ? 'success' : row === 2 ? 'skipped' : 'fail', () => { throw new Error('callback failed') })
     expect(result).toEqual({ success: 1, fail: 1, skipped: 1, cancelled: 0 })
     expect(queue.stats).toMatchObject({ pending: 0, active: 0, success: 1, fail: 1, skipped: 1 })
   })
@@ -102,14 +102,14 @@ describe('AI 配额及调度', () => {
     queue.cancel()
     finish!()
     expect(await old).toMatchObject({ cancelled: 3 })
-    expect(await queue.enqueue([4], 1, async () => 'success', 0)).toMatchObject({ success: 1 })
+    expect(await queue.enqueue([4], 1, async () => 'success')).toMatchObject({ success: 1 })
   })
   it('手动单张标注不排在未完成的批量任务之后', async () => {
     const queue = new AnnotationQueue()
     let finish: () => void
-    const batch = queue.enqueue([1], 1, () => new Promise<'success'>((resolve) => { finish = () => resolve('success') }), 0)
+    const batch = queue.enqueue([1], 1, () => new Promise<'success'>((resolve) => { finish = () => resolve('success') }))
     await Promise.resolve()
-    expect(await queue.enqueue([2], 1, async () => 'success', 0, undefined, undefined, true)).toMatchObject({ success: 1 })
+    expect(await queue.enqueue([2], 1, async () => 'success', undefined, undefined, true)).toMatchObject({ success: 1 })
     finish!()
     expect(await batch).toMatchObject({ success: 1 })
   })

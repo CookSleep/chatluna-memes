@@ -122,6 +122,26 @@ describe('图片存储一致性', () => {
     expect(await fs.readFile(path.join(root, 'target/2_1.png'), 'utf8')).toBe('source')
   })
 
+  it('移动外链保留标注，目标已有同一外链时合并标注', async () => {
+    const { service, tables } = await fixture()
+    const link = 'https://example.com/a.png'
+    await service.addLinksToCollection('source', [link, 'https://example.com/b.png'])
+    await service.addLinksToCollection('target', ['https://example.com/b.png'])
+    const tag = (value: string, collection: string, tags: string[]) => Object.assign(tables.memesluna_images.find((row) => row.value === value && row.collection === collection), { tags: JSON.stringify(tags) })
+    tag(link, 'source', ['猫'])
+    tag('https://example.com/b.png', 'source', ['狗'])
+    tag('https://example.com/b.png', 'target', ['柴犬'])
+
+    expect(await service.moveLinkToCollection('source', 'target', link)).toBe(true)
+    expect(await service.moveLinkToCollection('source', 'target', 'https://example.com/b.png')).toBe(true)
+    expect(tables.memesluna_images.filter((row) => row.collection === 'source')).toHaveLength(0)
+    const target = tables.memesluna_images.filter((row) => row.collection === 'target')
+    expect(target).toHaveLength(2)
+    expect(JSON.parse(target.find((row) => row.value === link).tags)).toEqual(['猫'])
+    expect(JSON.parse(target.find((row) => row.value === 'https://example.com/b.png').tags)).toEqual(['柴犬', '狗'])
+    expect(new Set(target.map((row) => row.filename)).size).toBe(2)
+  })
+
   it('移动数据库更新失败时恢复源文件并移除目标副本', async () => {
     const { service, root, database, tables } = await fixture()
     await service.addLocalImageBuffer('source', Buffer.from('source'), 'a.png')

@@ -5,13 +5,17 @@ import { randomUUID } from 'crypto'
 import { withStorageLock } from './storage'
 import { getDailyKey } from './utils'
 
+/** 用量达到每日上限的这个比例时在日志里提醒一次。 */
+const WARN_RATIO = 0.8
+
 interface Usage { day: string; requests: number; retries: number; successes: number; failures: number }
 
 export class AIUsageTracker {
   private usage: Usage = this.empty()
   private warned = false
   private get filename() { return path.resolve(this.ctx.baseDir, 'data/memesluna/.ai-usage.json') }
-  constructor(private ctx: Context, private dailyLimit: number, private warnThreshold: number) {}
+  constructor(private ctx: Context, private getDailyLimit: () => number) {}
+  private get dailyLimit() { return this.getDailyLimit() }
   private empty(): Usage { return { day: getDailyKey(), requests: 0, retries: 0, successes: 0, failures: 0 } }
 
   private async read(): Promise<Usage> {
@@ -56,7 +60,7 @@ export class AIUsageTracker {
       reservedDay = usage.day
     })
     if (allowed) onReserved?.(reservedDay!)
-    if (allowed && this.dailyLimit > 0 && !this.warned && this.usage.requests / this.dailyLimit >= this.warnThreshold) {
+    if (allowed && this.dailyLimit > 0 && !this.warned && this.usage.requests / this.dailyLimit >= WARN_RATIO) {
       this.warned = true
       this.ctx.logger('memesluna').warn(`AI 请求用量 ${this.usage.requests}/${this.dailyLimit}，接近每日上限`)
     }

@@ -1,5 +1,3 @@
-import { abortableDelay } from './annotation-scheduler'
-
 type Outcome = 'success' | 'fail' | 'skipped' | 'cancelled'
 
 export class AnnotationQueue {
@@ -12,7 +10,7 @@ export class AnnotationQueue {
   dispose() { this.closed = true; this.cancellation.abort() }
 
   /** immediate 任务不排在已入队批次之后，但仍共享取消信号和请求并发上限。 */
-  enqueue<T>(rows: T[], concurrency: number, process: (row: T, signal: AbortSignal) => Promise<Outcome>, delay: number,
+  enqueue<T>(rows: T[], concurrency: number, process: (row: T, signal: AbortSignal) => Promise<Outcome>,
     progress?: (success: number, fail: number) => void | Promise<void>, onError?: (error: unknown) => void, immediate = false) {
     const signal = this.cancellation.signal
     this.stats.pending += rows.length
@@ -31,7 +29,6 @@ export class AnnotationQueue {
           result[outcome]++
           this.stats[outcome]++
           try { await progress?.(result.success, result.fail) } catch (error) { onError?.(error) }
-          if (!signal.aborted && cursor < rows.length && delay > 0) await abortableDelay(delay, signal).catch(() => {})
         }
       }))
       return result

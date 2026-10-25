@@ -1,5 +1,5 @@
 import { Context, h } from 'koishi'
-import type { Config } from './config'
+import type { Settings } from './settings'
 import {
   FREQUENCY_TRACKER_CLEANUP_RATIO,
   MAX_FREQUENCY_TRACKER_SIZE,
@@ -19,8 +19,8 @@ interface AutoCollectDailyLimitRecord {
   count: number
 }
 
-function getMessageImages(session: any): string[] {
-  const elements = session.elements || []
+/** 取出消息里的图片地址；不同适配器分别用 image 和 img 元素。 */
+export function getMessageImages(elements: h[] = []): string[] {
   return h
     .select(elements, 'image')
     .concat(h.select(elements, 'img'))
@@ -72,11 +72,12 @@ function trackImageFrequency(
 
 function markImageFrequencyStaged(
   hash: string, groupId: string,
-  autoCollectFrequencyTracker: Map<string, AutoCollectFrequencyRecord>
+  autoCollectFrequencyTracker: Map<string, AutoCollectFrequencyRecord>,
+  staged = true
 ) {
   const key = `${groupId}:${hash}`
   const record = autoCollectFrequencyTracker.get(key)
-  if (record) record.staged = true
+  if (record) record.staged = staged
 }
 
 /**
@@ -115,7 +116,7 @@ function cleanupAutoCollectFrequency(
   }
 }
 
-export function applyAutoCollect(ctx: Context, config: Config) {
+export function applyAutoCollect(ctx: Context, config: Settings) {
   if (!config.autoCollect) return
 
   // 局部 Map：热重载时随插件 ctx dispose 一起销毁，不会累积
@@ -138,7 +139,7 @@ export function applyAutoCollect(ctx: Context, config: Config) {
 
     if (isDailyAutoCollectLimitReached(groupId, dailyLimit, autoCollectDailyLimits)) return
 
-    const imageUrls = getMessageImages(session)
+    const imageUrls = getMessageImages(session.elements)
     if (!imageUrls.length) return
 
     const service = ctx.memesluna
@@ -157,20 +158,27 @@ export function applyAutoCollect(ctx: Context, config: Config) {
         // 在任何 await 之前标记，避免并发消息重复计入每日上限。
         markImageFrequencyStaged(hash, groupId, autoCollectFrequencyTracker)
 
-        const duplicate = await service.getDuplicateImageByHash(hash, { includeStaged: true, includeImages: true })
-        if (duplicate) continue
-
-        if (hitDailyAutoCollectLimit(groupId, dailyLimit, autoCollectDailyLimits)) {
-          ctx.logger('memesluna').debug(`Auto collect daily limit reached for group ${groupId}`)
-          continue
+        // 没收进暂缓区（达到上限或出错）就撤销标记，图片再次出现时还能收集。
+        let collected = false
+        try {
+          if (await service.getDuplicateImageByHash(hash, { includeStaged: true, includeImages: true })) {
+            collected = true
+            continue
+          }
+          if (hitDailyAutoCollectLimit(groupId, dailyLimit, autoCollectDailyLimits)) {
+            ctx.logger('memesluna').debug(`Auto collect daily limit reached for group ${groupId}`)
+            continue
+          }
+          await service.addStagedImageBuffer(
+            buffer,
+            `auto-${Date.now()}${ext}`,
+            `auto:${groupId}`,
+            `${windowMinutes} 分钟内出现 ${frequency.count} 次`
+          )
+          collected = true
+        } finally {
+          if (!collected) markImageFrequencyStaged(hash, groupId, autoCollectFrequencyTracker, false)
         }
-
-        await service.addStagedImageBuffer(
-          buffer,
-          `auto-${Date.now()}${ext}`,
-          `auto:${groupId}`,
-          `${windowMinutes} 分钟内出现 ${frequency.count} 次`
-        )
       } catch (error) {
         const message = (error as Error).message
         // 重复图片属于正常情况；下载、写入等失败需要能在日志里看到。

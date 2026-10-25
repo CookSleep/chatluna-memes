@@ -28,7 +28,9 @@
 ```
 src/
   index.ts              插件入口：注册服务，并按依赖用 ctx.inject 挂载各功能
-  config.ts             配置 Schema 和默认值（用户可见的说明文字也在这里）
+  config.ts             Koishi 配置 Schema：只保留隐藏的旧配置项，用于首次迁移
+  settings.ts           设置的类型、默认值和校验，前后端共用，不要引入 koishi
+  settings-store.ts     设置的读写（data/memesluna/.settings.json），保存后发出 memesluna/settings-updated
   service.ts            MemesLunaService：合集、图片、外部图源、暂缓区的存储与数据库读写
   http-server.ts        HTTP 路由：随机图、302 跳转、上传、管理接口
   console-handlers.ts   Console RPC 监听器（全部经过 requireConsoleAdmin 鉴权）
@@ -105,6 +107,7 @@ tests/                  Vitest 用例
 - 新的 Console RPC 统一用 `addListener` 注册，自动带管理员鉴权；同时在 `console-rpc.ts` 的 `MemesLunaConsoleEvents` 中补类型。
 - 写文件和数据库的操作走 `withStorageLock`，失败时回滚，参考 `service.ts` 里的现有写法。
 - 消息元素同时选择 `img` 和 `image`：OneBot 等适配器产出的是 `img`。
+- 用户设置不进 Koishi 配置 Schema。新增设置项时同步修改 `settings.ts`（类型、默认值、校验）和「配置」页 `ConfigView.vue`；运行时直接读共享的设置对象，只在挂载时读取设置的功能要在 `index.ts` 里用 `reloadOn` 声明依赖的键。
 
 ## 错误处理与日志
 

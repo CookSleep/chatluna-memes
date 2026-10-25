@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
 import { Context, Service, Eval } from 'koishi'
-import type { Config } from './config'
+import type { Settings } from './settings'
 import type { AIAnnotator } from './aiAnnotator'
 import {
   BACKFILL_CONCURRENCY,
@@ -232,7 +232,7 @@ export class MemesLunaService extends Service {
   /** 批量和手动标注共享生命周期及进度统计。 */
   private _annotationQueue = new AnnotationQueue()
 
-  constructor(ctx: Context, public config: Config) {
+  constructor(ctx: Context, public config: Settings) {
     super(ctx, 'memesluna', true)
     this.defineDatabase()
 
@@ -266,8 +266,17 @@ export class MemesLunaService extends Service {
     this._annotator = annotator
   }
 
+  clearAnnotator(annotator: AIAnnotator): void {
+    if (this._annotator === annotator) this._annotator = null
+  }
+
   get annotator(): AIAnnotator | null {
     return this._annotator
+  }
+
+  /** 上传、偷图和归档后是否自动排队标注。 */
+  get autoAnnotate(): boolean {
+    return !!this._annotator && this.config.autoAnnotate
   }
 
   getAnnotationStatus() {
@@ -309,7 +318,7 @@ export class MemesLunaService extends Service {
         return 'success'
       }
       return await this.updateImageAnnotation(stored.id, result.aliases, result.tags) ? 'success' : 'skipped'
-    }, this.config.aiBatchDelay || 0, options?.onProgress, (error) => this.ctx.logger('memesluna').warn('Annotation task failed:', error), options?.immediate)
+    }, options?.onProgress, (error) => this.ctx.logger('memesluna').warn('Annotation task failed:', error), options?.immediate)
   }
 
 
@@ -1083,6 +1092,39 @@ export class MemesLunaService extends Service {
     return true
   }
 
+  /** 把外链连同标注移到另一个表情包；目标已有同一外链时合并两边的标注。 */
+  async moveLinkToCollection(sourceCollection: string, targetCollection: string, link: string): Promise<boolean> {
+    return withStorageLock(this.getStorageRoot(), async () => {
+      this.ensureCollectionName(sourceCollection)
+      this.ensureCollectionName(targetCollection)
+      if (sourceCollection === targetCollection) return false
+      if (!(await this.collectionExists(sourceCollection)) || !(await this.collectionExists(targetCollection))) return false
+      const [row] = await this.ctx.database.get('memesluna_images', { collection: sourceCollection, value: link, type: 'external' })
+      if (!row) return false
+      const [existing] = await this.ctx.database.get('memesluna_images', { collection: targetCollection, value: link, type: 'external' })
+      if (existing) {
+        const merge = (a: string, b: string, max: number) => JSON.stringify(normalizeMetadataList(
+          [...parseJsonStringArray(a), ...parseJsonStringArray(b)], max, MAX_METADATA_ITEM_LENGTH,
+        ))
+        await this.ctx.database.set('memesluna_images', { id: existing.id }, {
+          aliases: merge(existing.aliases, row.aliases, MAX_METADATA_ALIASES),
+          tags: merge(existing.tags, row.tags, MAX_METADATA_TAGS),
+        })
+        await this.ctx.database.remove('memesluna_images', { id: row.id })
+      } else {
+        const [last] = await this.ctx.database.get('memesluna_images', { collection: targetCollection }, { limit: 1, sort: { index: 'desc' } })
+        const index = (last?.index ?? 0) + 1
+        await this.ctx.database.set('memesluna_images', { id: row.id }, {
+          collection: targetCollection,
+          index,
+          filename: await this.deduplicateDatabaseFilename(targetCollection, `link_${index}`),
+        })
+      }
+      this.notifyImagesChanged()
+      return true
+    })
+  }
+
   private detectExtFromDataUrl(dataUrl: string): string {
     const matched = /^data:image\/([a-zA-Z0-9+.-]+);base64,/i.exec(dataUrl)
     const ext = matched?.[1]?.toLowerCase()
@@ -1438,7 +1480,7 @@ export class MemesLunaService extends Service {
 
     const saved = savedResult.filename
 
-    if (this._annotator) {
+    if (this.autoAnnotate) {
       void this.queueAnnotation([{
         id: savedResult.id,
         collection: collectionName,
@@ -1716,33 +1758,16 @@ export class MemesLunaService extends Service {
     return true
   }
 
-  async buildRouteInventory(backendPath: string): Promise<string> {
-    const [endpoints, collections] = await Promise.all([this.getEndpoints(), this.getCollectionInfos()])
-
-    const sections: string[] = []
-
-    // 端点分节
-    if (endpoints.length > 0) {
-      const endpointLines = endpoints.map(ep => {
-        const desc = ep.description || ep.name
-        return `  - ${ep.name}：${desc} → ${backendPath}/${encodeURIComponent(ep.name)}`
-      })
-      sections.push(`【端点转发】\n${endpointLines.join('\n')}`)
-    }
-
-    // 表情包合集分节
-    const collectionLines: string[] = []
-    for (const info of collections) {
-      if (info.hasContent) {
-        const desc = info.description ? `（${info.description}）` : ''
-        collectionLines.push(`  - ${info.name}${desc} → ${backendPath}/${encodeURIComponent(info.name)}`)
-      }
-    }
-    if (collectionLines.length > 0) {
-      sections.push(`【表情包合集】\n${collectionLines.join('\n')}`)
-    }
-
-    return sections.join('\n\n')
+  /** 给 ChatLuna 的随机图清单：表情包和外部图源用法相同，合成一张列表，每项给出完整地址。 */
+  async buildRouteInventory(routeBaseUrl: string): Promise<string> {
+    const [collections, endpoints] = await Promise.all([this.getCollectionInfos(), this.getEndpoints()])
+    const routes = [
+      ...collections.filter((info) => info.hasContent).map((info) => ({ name: info.name, description: info.description })),
+      ...endpoints.map((endpoint) => ({ name: endpoint.name, description: endpoint.description })),
+    ]
+    return routes
+      .map(({ name, description }) => `- ${description ? `${name}：${description}` : name}\n  ${routeBaseUrl}/${encodeURIComponent(name)}`)
+      .join('\n')
   }
 }
 

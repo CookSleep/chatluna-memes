@@ -30,15 +30,19 @@ npm i koishi-plugin-memesluna
 
 自定义客户端调用 `/memesluna/api/admin/*` 时，使用 Console 登录得到的凭据发送 `Authorization: Bearer <token>`。不要把凭据放在 URL 中。内置 Console 已自动处理上传和暂缓区图片预览的鉴权。
 
-## 基础配置
+## 配置
 
-| 配置项 | 说明 |
-|--------|------|
-| `backendPath` | HTTP 路由前缀，默认 `/memesluna` |
-| `selfUrl` | 对外完整地址；留空则用 `server.selfUrl` |
-| `injectVariables` | 是否注入 ChatLuna 变量，默认开启 |
-| `variableRefreshIntervalMs` | 变量刷新间隔 |
-| `injectVariablesPrompt` | `{memesluna}` 提示词模板 |
+所有设置都在 Console 的 MemesLuna 页面第一个标签「配置」里修改，保存后立即生效，不需要重启 Koishi。Koishi 插件配置页不再显示配置项。
+
+| 分区 | 内容 |
+|------|------|
+| 访问地址 | 对外地址（留空则用 `server.selfUrl`）、路由前缀（默认 `/memesluna`） |
+| ChatLuna 注入 | 是否注入变量、`{memesluna}` 提示词模板 |
+| 自动收集 | 开关、统计窗口与出现次数、图片体积范围、每群每日上限 |
+| 暂缓区 | 相似分组阈值、自动清理天数 |
+| AI 标注 | 标注模型、是否自动标注新图片、每日请求上限、标注提示词，以及并发、请求间隔、尝试次数、超时 |
+
+设置保存在 `data/memesluna/.settings.json`。从旧版本升级时，首次启动会把 `koishi.yml` 里原有的配置迁移过来，之后只读这个文件。以下旧配置项已移除：`variableRefreshIntervalMs`（路由或设置变化时会立即刷新 ChatLuna 变量）、`aiBatchDelay`（限流时降低并发即可）、`aiWarnThreshold`（用量达到 80% 时在日志提醒一次）。`aiRequestTimeoutMs` 改为以秒为单位；`aiBackoffBase` 改为「重试等待」，以秒为单位，每次重试翻倍，最多等 30 秒。
 
 本地合集固定在 Koishi 数据目录 `data/memesluna`。合集名与外部图源名共用路由命名空间，不能重名。
 
@@ -46,10 +50,11 @@ npm i koishi-plugin-memesluna
 
 启用插件后，控制台会出现 **MemesLuna** 页面：
 
-1. 在「表情包」新建合集，上传本地图片或导入外链  
-2. 在「外部图源」添加随机图片 API，可以先点「试一下」确认能取到图  
-3. 在「暂缓区」处理自动收集或被拦下的图片：直接归档到表情包，或者删除；相似图片会自动标出并可按组处理  
-4. 在「预览」查看注入给 ChatLuna 的路由、提示词和 AI 标注状态  
+1. 在「配置」调整访问地址、ChatLuna 注入、自动收集和 AI 标注  
+2. 在「表情包」新建合集，上传本地图片或导入外链  
+3. 在「外部图源」添加随机图片 API，可以先点「试一下」确认能取到图  
+4. 在「暂缓区」处理自动收集或被拦下的图片：直接归档到表情包，或者删除；相似图片会自动标出并可按组处理  
+5. 在「预览」查看注入给 ChatLuna 的路由、提示词和 AI 标注状态  
 
 管理页里的缩略图由浏览器直接加载。外链或外部图源显示「无法预览」时，常见原因是防盗链、跨域限制、HTTPS 页面里的 HTTP 图片，或者只有服务器能访问的内网地址（例如 Docker 容器名）。这不代表机器人发图一定失败。
 
@@ -84,16 +89,16 @@ npm i koishi-plugin-memesluna
 
 ## ChatLuna
 
-开启 `injectVariables` 后注入：
+在「配置」开启 ChatLuna 注入后提供：
 
 - `{endpoint}`：可用合集与外部图源清单  
-- `{memesluna}`：由 `injectVariablesPrompt` 渲染的使用说明  
+- `{memesluna}`：由提示词模板渲染的使用说明  
 
-模板占位符：`{endpoint}`、`{base_url}`、`{backend_path}`（以及兼容用的空占位 `{tag_routes}`、`{tags}`）。
+模板占位符：`{endpoint}`、`{base_url}`、`{backend_path}`。
 
 ## AI 标注
 
-配置 ChatLuna `model` 后，上传 / 偷图 / 归档本地图可异步生成 `tags` 与 `aliases`。
+在「配置」选择 ChatLuna 标注模型后，上传 / 偷图 / 归档本地图会异步生成 `tags` 与 `aliases`；关闭「自动标注」则只在手动识别或执行 `tagall` 时标注。
 
 ```text
 memesluna.tagall
@@ -104,15 +109,13 @@ memesluna.untagall -c 合集名
 
 手动标注、上传后标注、归档和 `tagall` 使用同一任务队列及请求并发上限。Console 的「预览」页可以查看任务状态、每日用量并取消任务；取消会保留已完成的标注。
 
-`aiDailyLimit` 现在按实际请求次数计数，失败请求和重试也占用配额。请求次数、重试、成功与失败结果保存在 `data/memesluna/.ai-usage.json`，重启后继续使用，按 UTC 日期重置。`aiRequestTimeoutMs` 默认 60 秒；底层模型应支持取消信号，超时请求实际结束前仍占用并发槽位，后续等待也有超时限制。
+每日请求上限按实际请求次数计数，失败请求和重试也占用配额。请求次数、重试、成功与失败结果保存在 `data/memesluna/.ai-usage.json`，重启后继续使用，按 UTC 日期重置。请求超时默认 60 秒；底层模型应支持取消信号，超时请求实际结束前仍占用并发槽位，后续等待也有超时限制。
 
 ## 自动收集与暂缓区
 
-开启 `autoCollect` 后监听群聊图片；窗口内出现次数达到阈值则进入暂缓区。该选项默认关闭，关闭时暂缓区只会收到上传时超过 10 MB 的图片。
+开启自动收集后监听群聊图片；窗口内出现次数达到阈值则进入暂缓区。该选项默认关闭，关闭时暂缓区只会收到上传时超过 10 MB 的图片。
 
-`minEmojiSize` 默认 4 KB。QQ 表情大多在 5~40 KB，设得太高会让大部分表情直接被忽略。
-
-主要配置：`emojiFrequencyWindowMinutes`、`emojiFrequencyThreshold`、`minEmojiSize` / `maxEmojiSize`、`groupAutoCollectLimit`、`similarityThreshold`、`stagingRetentionDays`。
+图片体积下限默认 4 KB。QQ 表情大多在 5~40 KB，设得太高会让大部分表情直接被忽略。
 
 相似图片分组使用精确汉明距离候选检索，每个组成员都需要与该组代表图达到阈值。管理页显示成员与代表图的最低相似度；不会因为暂缓区超过 200 张而切换成会漏检的前缀分桶规则。
 

@@ -51,7 +51,7 @@ async function fixture() {
     getStagedImageBuffer: vi.fn(async () => ({ buffer: Buffer.from('staged'), mime: 'image/png' })),
   }
   const config: any = { backendPath: '/memesluna' }
-  applyConsole(ctx, config, service)
+  applyConsole(ctx, config, { update: async () => ({ ok: true }) } as any, service)
   applyServer(ctx, config, service)
   const app = new Koa()
   app.use(router.routes())

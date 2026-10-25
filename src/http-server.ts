@@ -1,7 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { Context } from 'koishi'
-import type { Config } from './config'
+import type { Settings } from './settings'
 import { renderInjectPrompt } from './chatluna-inject'
 import { findByQuery } from './search'
 import {
@@ -16,7 +16,7 @@ import { MAX_IMAGE_BYTES, MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_BYTES } from './con
 
 async function applyDynamicForward(
   ctx: Context,
-  config: Config,
+  config: Settings,
   service: MemesLunaService,
   routeName: string,
   _query: Record<string, unknown>,
@@ -94,7 +94,7 @@ function getConsolePageUrl(ctx: Context): string {
   return `${uiPath.replace(/\/+$/, '')}/memesluna`
 }
 
-export function applyServer(ctx: Context, config: Config, service: MemesLunaService) {
+export function applyServer(ctx: Context, config: Settings, service: MemesLunaService) {
   if (!ctx.server) return
 
   const basePath = config.backendPath
@@ -114,7 +114,7 @@ export function applyServer(ctx: Context, config: Config, service: MemesLunaServ
   ])) as Record<'get' | 'post', (route: string, handler: (koa: any) => Promise<void>) => unknown>
 
   server.get(`${basePath}/api/homepage-data`, async (koa) => {
-    const inventory = await service.buildRouteInventory(basePath)
+    const inventory = await service.buildRouteInventory(`${toAbsoluteBaseUrl(ctx, config)}${basePath}`)
     koa.body = { llmPrompt: renderInjectPrompt(config, inventory, toAbsoluteBaseUrl(ctx, config)), routeInventory: inventory }
   })
 
@@ -171,7 +171,7 @@ export function applyServer(ctx: Context, config: Config, service: MemesLunaServ
           failed.push({ filename: file.originalFilename || '', error: (error as Error).message })
         }
       }
-      if (service.annotator && rowsToAnnotate.length) {
+      if (service.autoAnnotate && rowsToAnnotate.length) {
         void service.queueAnnotation(rowsToAnnotate).catch((error) => ctx.logger('memesluna').warn(error))
       }
       koa.status = uploaded.length ? 200 : 400

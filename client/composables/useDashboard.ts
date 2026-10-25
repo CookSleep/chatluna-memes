@@ -9,6 +9,7 @@ import { useToast } from './useToast'
 import { useStaging } from './useStaging'
 import { useEndpoints } from './useEndpoints'
 import { useMetadataEditor } from './useMetadataEditor'
+import { useSettings } from './useSettings'
 import { applyClickSelection, type ClickModifiers } from '../utils/selection'
 import { CROSS_ORIGIN_HINT, isLinkValue, formatDate, formatPercent, formatSize, getExternalLinkLabel, getImageExtension, humanizeSource, readSessionOption, tagHue } from '../utils/format'
 import { MAX_IMAGE_BYTES } from '../../src/constants'
@@ -42,11 +43,11 @@ interface PreviewRouteRow {
   previewImages: string[]
 }
 
-type MainMenu = 'resources' | 'distribution' | 'staging' | 'settings'
+type MainMenu = 'config' | 'resources' | 'distribution' | 'staging' | 'settings'
 
 export function useDashboard() {
   // 导航
-  const activeMenu = ref<MainMenu>(readSessionOption('memesluna_active_menu', 'resources', ['resources', 'distribution', 'staging', 'settings']))
+  const activeMenu = ref<MainMenu>(readSessionOption('memesluna_active_menu', 'resources', ['config', 'resources', 'distribution', 'staging', 'settings']))
 
   const { toast, showToast } = useToast()
   const dialogApi = useDialog()
@@ -66,6 +67,7 @@ export function useDashboard() {
 
   const staging = useStaging({ loading, currentCollection, showToast, confirmDialog, pickCollection, fetchState, loadCollectionResources })
   const { stagedImages, clearSelectedStaged, refreshStagedImages, stageFilteredFiles } = staging
+  const config = useSettings({ showToast, confirmDialog, onSaved: () => fetchState() })
   const endpointEditor = useEndpoints({ loading, showToast, confirmDialog, fetchState, validateRouteName, getBaseRedirectUrl })
 
   const failedEndpointPreviewIds = ref<Set<string>>(new Set())
@@ -271,17 +273,28 @@ export function useDashboard() {
   const fileInput = ref<HTMLInputElement | null>(null)
 
   // 切换顶部标签页
-  function switchMainMenu(menu: MainMenu) {
+  async function switchMainMenu(menu: MainMenu) {
+    if (menu === activeMenu.value) return
+    if (activeMenu.value === 'config' && !await config.confirmLeaveConfig()) return
     activeMenu.value = menu
     sessionStorage.setItem('memesluna_active_menu', menu)
     if (menu === 'settings') {
       fetchSettingsPreview()
+    }
+    if (menu === 'config') {
+      void config.loadConfig()
     }
     if (menu === 'staging') {
       refreshStagedImages()
     } else {
       clearSelectedStaged()
     }
+  }
+
+  /** 跳到「配置」并定位到指定的分区或设置项。 */
+  async function openConfig(target: string) {
+    config.configTarget.value = target
+    await switchMainMenu('config')
   }
 
   function getBackendBaseUrl(): string {
@@ -591,26 +604,35 @@ export function useDashboard() {
     })) return
 
     collectionEditor.saving = true
+    // 改名成功后描述保存失败时，界面也要换成新名字，否则重试会拿旧名字再改一次。
+    let renamedDone = false
     try {
-      if (renamed && !await sendMemesLuna('memesluna/renameCollection', oldName, name)) throw new Error('表情包不存在，可能已被删除')
+      if (renamed) {
+        if (!await sendMemesLuna('memesluna/renameCollection', oldName, name)) throw new Error('表情包不存在，可能已被删除')
+        renamedDone = true
+        collectionEditor.original = name
+      }
       const previous = collections.value.find((item) => item.name === oldName)?.description || ''
       if (description !== previous) await sendMemesLuna('memesluna/setCollectionDescription', name, description)
       collectionEditor.open = false
       showToast('已保存表情包信息', 'success')
-      await fetchState()
-      if (currentCollection.value?.name === oldName) {
-        const match = collections.value.find((item) => item.name === name)
-        if (match) {
-          currentCollection.value = match
-          sessionStorage.setItem('memesluna_active_collection', name)
-          if (renamed) await loadCollectionResources(name)
-        }
-      }
+      await syncCollectionAfterEdit(oldName, name, renamed)
     } catch (err) {
       showToast(err instanceof Error ? err.message : '保存表情包信息失败', 'error')
+      if (renamedDone) await syncCollectionAfterEdit(oldName, name, true)
     } finally {
       collectionEditor.saving = false
     }
+  }
+
+  async function syncCollectionAfterEdit(oldName: string, name: string, renamed: boolean) {
+    await fetchState()
+    if (currentCollection.value?.name !== oldName) return
+    const match = collections.value.find((item) => item.name === name)
+    if (!match) return
+    currentCollection.value = match
+    sessionStorage.setItem('memesluna_active_collection', name)
+    if (renamed) await loadCollectionResources(name)
   }
 
   // 上传
@@ -858,9 +880,7 @@ export function useDashboard() {
       loading.value = true
       const results = await settledBatch(names, async (value) => {
         if (isLinkValue(value)) {
-          // 外链没有单独的移动接口：先加到目标（已存在会跳过），再从原表情包移除。
-          await sendMemesLuna('memesluna/addLinks', target, value)
-          if (!await sendMemesLuna('memesluna/deleteLink', source, value)) throw new Error('移动失败')
+          if (!await sendMemesLuna('memesluna/moveLink', source, target, value)) throw new Error('移动失败')
           return
         }
         if (!await sendMemesLuna('memesluna/moveLocalImage', source, target, value)) throw new Error('移动失败')
@@ -919,6 +939,8 @@ export function useDashboard() {
       await refreshStagedImages()
     } else if (activeMenu.value === 'settings') {
       await fetchSettingsPreview()
+    } else if (activeMenu.value === 'config') {
+      await config.loadConfig()
     }
 
     loading.value = false
@@ -955,6 +977,7 @@ export function useDashboard() {
     ...staging,
     ...endpointEditor,
     ...metadata,
+    ...config,
     toast,
     activeMenu,
     loading,
@@ -1016,6 +1039,7 @@ export function useDashboard() {
     dragOver,
     fileInput,
     switchMainMenu,
+    openConfig,
     getRouteDisplayPath,
     getBaseRedirectUrl,
     getStagedImageUrl,

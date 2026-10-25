@@ -1,7 +1,7 @@
 import { Context } from 'koishi'
-import type { Config } from './config'
+import type { Settings } from './settings'
 
-export function applyStagingCleanup(ctx: Context, config: Config) {
+export function applyStagingCleanup(ctx: Context, config: Settings) {
   const retentionDays = config.stagingRetentionDays || 0
   if (retentionDays <= 0) return
 

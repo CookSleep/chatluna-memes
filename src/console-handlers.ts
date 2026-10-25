@@ -1,7 +1,7 @@
 import { existsSync } from 'fs'
 import path from 'path'
 import { Context } from 'koishi'
-import type { Config } from './config'
+import type { Settings } from './settings'
 import {
   type MemesLunaService,
 } from './service'
@@ -11,9 +11,10 @@ import {
 } from './utils'
 import { toAbsoluteBaseUrl } from './urls'
 import { ADMIN_AUTHORITY, requireConsoleAdmin } from './admin-auth'
-import type { ImageMetadataPayload, CollectionPageQuery } from './console-rpc'
+import type { ImageMetadataPayload, CollectionPageQuery, ConsoleModelOption } from './console-rpc'
+import type { SettingsStore } from './settings-store'
 
-export function applyConsole(ctx: Context, config: Config, service: MemesLunaService) {
+export function applyConsole(ctx: Context, config: Settings, store: SettingsStore, service: MemesLunaService) {
   if (!ctx.console) {
     return
   }
@@ -60,6 +61,7 @@ export function applyConsole(ctx: Context, config: Config, service: MemesLunaSer
         settings: {
           injectVariables: !!config.injectVariables,
           annotatorReady: !!service.annotator,
+          autoAnnotate: config.autoAnnotate,
           stagingRetentionDays: config.stagingRetentionDays || 0,
           // 与 auto-collect.ts 中的默认值保持一致。
           autoCollect: {
@@ -74,6 +76,16 @@ export function applyConsole(ctx: Context, config: Config, service: MemesLunaSer
       }
     })
   )
+
+  addListener('memesluna/getSettings', () => ({
+    settings: { ...config },
+    models: listChatModels(ctx),
+    chatlunaAvailable: !!ctx.get('chatluna'),
+    annotatorReady: !!service.annotator,
+    serverSelfUrl: ((ctx.get('server') as any)?.selfUrl || '').replace(/\/+$/, ''),
+  }))
+
+  addListener('memesluna/updateSettings', (patch: unknown) => store.update(patch))
 
   addListener(
     'memesluna/createCollection',
@@ -125,6 +137,13 @@ export function applyConsole(ctx: Context, config: Config, service: MemesLunaSer
         .map((line) => line.trim())
         .filter(Boolean)
       return await service.addLinksToCollection(collectionName, links)
+    })
+  )
+
+  addListener(
+    'memesluna/moveLink',
+    withReady(async (sourceCollection: string, targetCollection: string, link: string) => {
+      return await service.moveLinkToCollection(sourceCollection, targetCollection, link)
     })
   )
 
@@ -244,4 +263,19 @@ export function applyConsole(ctx: Context, config: Config, service: MemesLunaSer
     })
   )
 
+}
+
+/** ChatLuna 已加载的对话模型；chatluna 是可选依赖，未安装时返回空列表。 */
+function listChatModels(ctx: Context): ConsoleModelOption[] {
+  try {
+    // 1 即 ModelType.llm，这里不直接引入 chatluna 的运行时代码。
+    const models = (ctx.get('chatluna') as any)?.platform?.listAllModels(1)?.value || []
+    return models.map((model: any) => ({
+      name: model.toModelName?.() || `${model.platform}/${model.name}`,
+      vision: Array.isArray(model.capabilities) && model.capabilities.includes('image_input'),
+    }))
+  } catch (error) {
+    ctx.logger('memesluna').warn('读取 ChatLuna 模型列表失败:', error)
+    return []
+  }
 }

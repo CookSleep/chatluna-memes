@@ -21,7 +21,7 @@
       <span v-else>
         自动收集未开启，群聊里的图片不会进入暂缓区。<br />
         目前只有一种情况会进来：在管理页上传图片时，超过 10 MB 的会先放在这里等你确认。<br />
-        想收集群聊里的高频表情，请在插件配置中打开「自动暂存配置 → autoCollect」。
+        想收集群聊里的高频表情，可以在<button type="button" class="ml-inline-link" @click="openConfig('ml-config-collect')">「配置」</button>中开启自动收集。
       </span>
     </div>
 

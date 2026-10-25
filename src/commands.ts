@@ -1,13 +1,14 @@
 import { Context, h } from 'koishi'
-import type { Config } from './config'
+import type { Settings } from './settings'
 import { downloadImage } from './download'
+import { getMessageImages } from './auto-collect'
 import { getExtFromMagicBytes } from './image-format'
 import { parseJsonStringArray } from './utils'
 
 /** 会写入或批量修改图库的命令所需权限。 */
 const MANAGE_AUTHORITY = 5
 
-export function registerCommands(ctx: Context, config: Config) {
+export function registerCommands(ctx: Context, config: Settings) {
   const root = ctx.command('memesluna', 'MemesLuna 命令')
 
   root
@@ -53,13 +54,10 @@ export function registerCommands(ctx: Context, config: Config) {
       return `检查表情包失败: ${(err as Error).message}`
     }
 
-    // OneBot 等适配器产出 img 元素，部分适配器仍使用 image，两者都要选。
     const source = session.quote
       ? (session.quote.elements ?? h.parse(session.quote.content || ''))
-      : (session.elements || [])
-    const imageUrls: string[] = [...h.select(source, 'img'), ...h.select(source, 'image')]
-      .map((img) => img.attrs.url || img.attrs.src)
-      .filter(Boolean)
+      : session.elements
+    const imageUrls = getMessageImages(source)
 
     if (!imageUrls.length) {
       return '没有找到要偷的图片。请引用包含图片的聊天记录，或者在发送图片的同时回复 "偷了 [表情包名称]"'
@@ -101,7 +99,7 @@ export function registerCommands(ctx: Context, config: Config) {
       return '偷表情包失败，下载图片或上传保存时发生错误。'
     }
 
-    if (service.annotator && rowsToAnnotate.length > 0) {
+    if (service.autoAnnotate && rowsToAnnotate.length > 0) {
       void service.queueAnnotation(rowsToAnnotate)
     }
 
@@ -127,7 +125,7 @@ export function registerCommands(ctx: Context, config: Config) {
       const service = ctx.memesluna
       await service.ready
       const annotator = service.annotator
-      if (!annotator) return 'AI 标注器未就绪，请先在配置中指定模型（model）。'
+      if (!annotator) return 'AI 标注器未就绪，请先在控制台 MemesLuna 页面的「配置」中选择标注模型。'
 
       const images = await ctx.database.get('memesluna_images', {})
       const force = !!options?.force

@@ -10,7 +10,8 @@
         <LoadingSpinner v-if="!initialized" />
         <template v-else>
           <MenuSwitcher v-if="!currentCollection" />
-          <CollectionsView v-if="activeMenu === 'resources'" />
+          <ConfigView v-if="activeMenu === 'config'" />
+          <CollectionsView v-else-if="activeMenu === 'resources'" />
           <EndpointsView v-else-if="activeMenu === 'distribution'" />
           <StagingView v-else-if="activeMenu === 'staging'" />
           <PreviewView v-else-if="activeMenu === 'settings'" />
@@ -34,6 +35,7 @@ import CollectionsView from '../views/collections/CollectionsView.vue'
 import EndpointsView from '../views/endpoints/EndpointsView.vue'
 import StagingView from '../views/staging/StagingView.vue'
 import PreviewView from '../views/preview/PreviewView.vue'
+import ConfigView from '../views/config/ConfigView.vue'
 
 export default defineComponent({
   name: 'AppLayout',
@@ -47,6 +49,7 @@ export default defineComponent({
     EndpointsView,
     StagingView,
     PreviewView,
+    ConfigView,
   },
   setup() {
     return useDashboardContext()

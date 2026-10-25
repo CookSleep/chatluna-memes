@@ -1,3 +1,4 @@
+import type { Settings, SettingsPatchResult } from './settings'
 import type {} from '@koishijs/plugin-console'
 
 export type ConsoleDate = string | Date
@@ -73,8 +74,24 @@ export interface ConsoleAutoCollectSettings {
 export interface ConsoleSettingsSummary {
   injectVariables: boolean
   annotatorReady: boolean
+  autoAnnotate: boolean
   stagingRetentionDays: number
   autoCollect: ConsoleAutoCollectSettings
+}
+
+export interface ConsoleModelOption {
+  name: string
+  /** 模型声明了图片输入能力。 */
+  vision: boolean
+}
+
+export interface ConsoleSettingsPayload {
+  settings: Settings
+  models: ConsoleModelOption[]
+  chatlunaAvailable: boolean
+  annotatorReady: boolean
+  /** Koishi server 插件推导出的地址，selfUrl 留空时使用。 */
+  serverSelfUrl: string
 }
 
 export interface ConsoleState {
@@ -145,6 +162,8 @@ export interface ImageMetadataResult {
 
 export interface MemesLunaConsoleEvents {
   'memesluna/getState'(): Promise<ConsoleState>
+  'memesluna/getSettings'(): Promise<ConsoleSettingsPayload>
+  'memesluna/updateSettings'(patch: Partial<Settings>): Promise<SettingsPatchResult>
   'memesluna/createCollection'(name: string): Promise<boolean>
   'memesluna/deleteCollection'(name: string): Promise<boolean>
   'memesluna/setCollectionDescription'(name: string, description: string): Promise<boolean>
@@ -152,6 +171,7 @@ export interface MemesLunaConsoleEvents {
   'memesluna/deleteLocalImage'(collectionName: string, filename: string): Promise<boolean>
   'memesluna/moveLocalImage'(sourceCollection: string, targetCollection: string, filename: string): Promise<string | null>
   'memesluna/addLinks'(collectionName: string, linksText: string): Promise<number>
+  'memesluna/moveLink'(sourceCollection: string, targetCollection: string, link: string): Promise<boolean>
   'memesluna/deleteLink'(collectionName: string, link: string): Promise<boolean>
   'memesluna/createEndpoint'(payload: ConsoleEndpointInput): Promise<string>
   'memesluna/updateEndpoint'(name: string, payload: ConsoleEndpointInput): Promise<boolean>

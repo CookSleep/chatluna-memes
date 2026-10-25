@@ -10,7 +10,7 @@
         </button>
         </div>
       </div>
-      <p class="ml-subtitle">查看 ChatLuna 能用到的路由、最终注入的提示词，以及 AI 标注的运行情况。</p>
+      <p class="ml-subtitle">查看 ChatLuna 能用到的随机图清单、最终注入的提示词，以及 AI 标注的运行情况。</p>
     </header>
 
     <div class="ml-stat-grid">
@@ -32,7 +32,7 @@
       <div class="ml-card ml-stat">
         <span class="ml-label">ChatLuna 注入</span>
         <strong :class="settings?.injectVariables ? 'is-success' : 'is-muted'">{{ settings?.injectVariables ? '已开启' : '未开启' }}</strong>
-        <span class="ml-hint">{{ settings?.injectVariables ? '变量 {endpoint} 和 {memesluna}' : '在插件配置中打开 injectVariables' }}</span>
+        <span class="ml-hint">{{ settings?.injectVariables ? '变量 {endpoint} 和 {memesluna}' : '可在「配置」中开启' }}</span>
       </div>
     </div>
 
@@ -40,7 +40,8 @@
       <div class="ml-card-head">
         <div>
           <h3>AI 标注</h3>
-          <p class="ml-hint" v-if="settings && !settings.annotatorReady">未配置标注模型，可在插件配置的「AI 标注配置」中选择。</p>
+          <p class="ml-hint" v-if="settings && !settings.annotatorReady">标注模型未就绪，可在<button type="button" class="ml-inline-link" @click="openConfig('ml-cfg-model')">「配置」</button>中选择模型。</p>
+          <p class="ml-hint" v-else-if="settings && !settings.autoAnnotate">已关闭自动标注，新图片需要手动识别。</p>
           <p class="ml-hint" v-else>上传、偷图和归档时自动生成标签与别名。</p>
         </div>
         <div class="ml-actions">
@@ -80,10 +81,10 @@
     <div class="ml-card ml-section-card">
       <div class="ml-card-head">
         <div>
-          <h3>路由清单</h3>
-          <p class="ml-hint">对应 <code>{endpoint}</code>，只列出有内容的表情包。</p>
+          <h3>随机图清单</h3>
+          <p class="ml-hint">对应 <code>{endpoint}</code>，表情包和外部图源合在一张清单里，空表情包不列出。</p>
         </div>
-        <button type="button" class="ml-btn is-small" :disabled="!routeInventoryText" @click="copyToClipboard(routeInventoryText, '路由清单')"><Icon name="copy" />复制</button>
+        <button type="button" class="ml-btn is-small" :disabled="!routeInventoryText" @click="copyToClipboard(routeInventoryText, '随机图清单')"><Icon name="copy" />复制</button>
       </div>
 
       <div v-if="previewRouteRows.length" class="ml-route-list">
@@ -122,7 +123,7 @@
       </div>
       <div v-if="settings && !settings.injectVariables" class="ml-callout is-warning">
         <Icon name="alert" />
-        <span>当前没有开启 ChatLuna 变量注入，下面只是预览，模型实际看不到这段内容。<br />如需启用，请在插件配置中打开 injectVariables。</span>
+        <span>当前没有开启 ChatLuna 变量注入，下面只是预览，模型实际看不到这段内容。<br />如需启用，请在<button type="button" class="ml-inline-link" @click="openConfig('ml-config-chatluna')">「配置」</button>中开启 ChatLuna 注入。</span>
       </div>
       <el-scrollbar max-height="420px" class="ml-code">
         <pre v-if="llmPromptPreview">{{ llmPromptPreview }}</pre>

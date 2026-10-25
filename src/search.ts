@@ -1,5 +1,5 @@
 import type { Context } from 'koishi'
-import type { Config } from './config'
+import type { Settings } from './settings'
 import type { MemesLunaService } from './service'
 import {
   ALL_IMAGES_CACHE_TTL,
@@ -274,7 +274,7 @@ export function invalidateAllImagesCache() {
 
 export async function findByQuery(
   ctx: Context,
-  config: Config,
+  config: Settings,
   service: MemesLunaService,
   query: string,
   requestOrigin?: string,
