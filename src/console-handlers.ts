@@ -10,7 +10,7 @@ import {
   toTrimmedString,
 } from './utils'
 import { toAbsoluteBaseUrl } from './urls'
-import { ADMIN_AUTHORITY, requireConsoleAdmin } from './admin-auth'
+import { ADMIN_AUTHORITY, isAuthEnabled, requireConsoleAdmin } from './admin-auth'
 import type { ImageMetadataPayload, CollectionPageQuery, ConsoleModelOption } from './console-rpc'
 import type { SettingsStore } from './settings-store'
 
@@ -55,6 +55,7 @@ export function applyConsole(ctx: Context, config: Settings, store: SettingsStor
       const stagedImages = await service.getStagedImages()
       return {
         backendPath: config.backendPath,
+        authEnabled: isAuthEnabled(ctx),
         endpoints,
         collections: detailedCollections.filter(Boolean),
         stagedImages,

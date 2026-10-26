@@ -58,6 +58,8 @@ export function useDashboard() {
   const initialized = ref(false)
   const settings = ref<ConsoleSettingsSummary | null>(null)
 
+  const authEnabled = ref(true)
+
   // 基础数据
   const backendPath = ref('/chatluna-memes')
   const baseUrl = ref('http://localhost:5140')
@@ -392,6 +394,7 @@ export function useDashboard() {
       const state = await sendChatLunaMemes('chatluna-memes/getState')
       if (state) {
         if (state.backendPath) backendPath.value = state.backendPath
+        authEnabled.value = state.authEnabled !== false
         endpoints.value = Array.isArray(state.endpoints) ? state.endpoints : []
         collections.value = Array.isArray(state.collections) ? state.collections : []
         stagedImages.value = Array.isArray(state.stagedImages) ? state.stagedImages : []
@@ -927,10 +930,33 @@ export function useDashboard() {
   }
 
   // 生命周期
+  /** 没有启用 auth 插件时提醒风险：每次打开浏览器提示一次，选「不再提示」后不再出现。 */
+  async function warnAuthDisabled() {
+    const dismissedKey = 'chatluna_memes_auth_notice_dismissed'
+    const shownKey = 'chatluna_memes_auth_notice_shown'
+    try {
+      if (localStorage.getItem(dismissedKey) === '1' || sessionStorage.getItem(shownKey) === '1') return
+      sessionStorage.setItem(shownKey, '1')
+    } catch {}
+    const dismissed = await confirmDialog({
+      title: '未启用 auth 插件',
+      message: [
+        '现在打开 Koishi 控制台不需要登录。',
+        '如果机器人不小心把图片地址以文字形式发到了别人看得到的地方，别人就能顺着这个地址找到你的控制台：不只能看到、改动这里的表情包和设置，还能操作整个 Koishi。',
+        '建议启用 Koishi 的 auth 插件后再使用。如果你清楚这个风险，可以忽略这条提示。',
+      ].join('\n\n'),
+      cancelText: '我知道了',
+      confirmText: '不再提示',
+      warning: true,
+    })
+    if (dismissed) try { localStorage.setItem(dismissedKey, '1') } catch {}
+  }
+
   onMounted(async () => {
     window.addEventListener('click', closeDropdowns)
     loading.value = true
     await fetchState()
+    if (!authEnabled.value) void warnAuthDisabled()
 
     // 恢复刷新前打开的表情包详情。
     if (activeMenu.value === 'resources') {

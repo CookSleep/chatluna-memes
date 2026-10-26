@@ -4,13 +4,13 @@
       <div v-if="dialog.visible" class="cm-theme cm-overlay is-top" @mousedown.self="cancelDialog" @keydown.esc.stop="cancelDialog">
         <div
           class="cm-dialog"
-          :class="{ 'is-danger': dialog.options.danger }"
+          :class="{ 'is-danger': dialog.options.danger, 'is-warning': dialog.options.warning }"
           role="dialog"
           aria-modal="true"
           :aria-label="dialog.options.title"
         >
           <div class="cm-dialog-head">
-            <span v-if="dialog.options.danger" class="cm-dialog-icon">
+            <span v-if="dialog.options.danger || dialog.options.warning" class="cm-dialog-icon">
               <Icon name="alert" />
             </span>
             <h3>{{ dialog.options.title }}</h3>

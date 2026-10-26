@@ -1045,7 +1045,8 @@ html.dark .cm-route:hover { background: rgba(255, 255, 255, .04); }
 }
 .cm-dialog-icon svg { width: 17px; height: 17px; }
 .cm-dialog-message { margin: 0 0 16px; max-height: 40vh; overflow-y: auto; color: var(--cm-text-2); line-height: 1.6; word-break: break-word; white-space: pre-line; }
-.cm-dialog.is-danger .cm-dialog-message { padding-left: 42px; }
+.cm-dialog.is-danger .cm-dialog-message, .cm-dialog.is-warning .cm-dialog-message { padding-left: 42px; }
+.cm-dialog.is-warning .cm-dialog-icon { background: var(--cm-warning-soft); color: var(--cm-warning); }
 .cm-dialog-field { margin-bottom: 4px; }
 .cm-dialog-error, .cm-field-error { margin: 6px 0 0; color: var(--cm-danger); font-size: 12.5px; }
 .cm-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }

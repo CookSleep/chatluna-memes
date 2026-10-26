@@ -14,6 +14,8 @@ export interface DialogOptions {
   cancelText?: string
   /** 危险操作使用红色确认按钮。 */
   danger?: boolean
+  /** 风险提示，标题旁显示黄色警告图标，确认按钮不变红。 */
+  warning?: boolean
   /** 提供后显示输入框，确认时返回输入内容。 */
   input?: {
     value?: string

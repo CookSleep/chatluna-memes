@@ -96,6 +96,8 @@ export interface ConsoleSettingsPayload {
 
 export interface ConsoleState {
   backendPath: string
+  /** 没有启用 auth 插件时管理页会提示风险。 */
+  authEnabled: boolean
   endpoints: ConsoleEndpointInfo[]
   collections: ConsoleCollectionInfo[]
   stagedImages: ConsoleStagedImageInfo[]
