@@ -8,7 +8,7 @@
 
 ## 仓库与分支
 
-- 单包 Koishi 插件：`koishi-plugin-chatluna-memes`，TypeScript ESM。由 [memesluna](https://github.com/lumia1998/koishi-plugin-memesluna) 改名独立而来。
+- 单包 Koishi 插件：`koishi-plugin-chatluna-memes`，TypeScript ESM。是 fork [lumia1998/memesluna](https://github.com/lumia1998/koishi-plugin-memesluna) 后修改并独立发布的插件。
 - 默认分支是 `main`，diff 以 `main` 或 `origin/main` 为准。
 - 后端源码在 `src/`，构建到 `lib/`；Console 前端在 `client/`，构建到 `dist/`。
 - `lib/`、`dist/` 是构建产物，不要手动修改，也不要提交。
