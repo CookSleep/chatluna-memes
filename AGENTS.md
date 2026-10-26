@@ -34,7 +34,7 @@ src/
   migration.ts          首次启动时迁移 memesluna 的设置、数据表和图片，状态记在 chatluna_memes_meta 表
   service.ts            ChatLunaMemesService：合集、图片、外部图源、暂缓区的存储与数据库读写
   http-server.ts        HTTP 路由：随机图、302 跳转、上传、管理接口
-  console-handlers.ts   Console RPC 监听器（全部经过 requireConsoleAdmin 鉴权）
+  console-handlers.ts   Console RPC 监听器（全部经过 requireConsoleAdmin；启用 auth 插件时才鉴权）
   console-rpc.ts        前后端共享的 RPC 类型，前端直接 import
   auto-collect.ts       群聊高频图片自动收集到暂缓区
   commands.ts           聊天命令（偷图、批量标注等）

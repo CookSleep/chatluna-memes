@@ -69,13 +69,20 @@ describe('管理权限边界', () => {
     expect(Object.keys(listeners).length).toBeGreaterThan(20)
     for (const listener of Object.values(listeners)) {
       expect(listener.options.authority).toBe(1)
-      await expect(listener.callback.call({}, 'collection')).rejects.toThrow('Unauthorized')
+      await expect(listener.callback.call({}, 'collection')).rejects.toThrow('请登录有管理权限的 Console 账号')
     }
     expect(service.createCollection).not.toHaveBeenCalled()
   })
-  it.each(['missing-auth', 'expired', 'revoked', 'low-authority', 'invalid-expiry', 'wrong-token'])('拒绝 %s 的 HTTP 和 RPC 请求', async (mode) => {
+  it('未启用 auth 插件时放行 RPC 和 HTTP 管理请求', async () => {
     const f = await fixture()
-    if (mode === 'missing-auth') f.setAuth(false)
+    f.setAuth(false)
+    await expect(f.listeners['chatluna-memes/createCollection'].callback.call({}, 'a')).resolves.toBe(true)
+    const image = await f.request('/chatluna-memes/api/admin/staged-images/id')
+    expect(image.status).toBe(200)
+    expect(await image.text()).toBe('staged')
+  })
+  it.each(['expired', 'revoked', 'low-authority', 'invalid-expiry', 'wrong-token'])('拒绝 %s 的 HTTP 和 RPC 请求', async (mode) => {
+    const f = await fixture()
     if (mode === 'expired') f.token.expiredAt = Date.now() - 1
     if (mode === 'invalid-expiry') f.token.expiredAt = NaN
     if (mode === 'revoked') f.revoke()
@@ -86,7 +93,7 @@ describe('管理权限边界', () => {
     const response = await f.request('/chatluna-memes/api/admin/staged-images/id', { headers: { Authorization: `Bearer ${suppliedToken}` } })
     expect(response.status).toBe(401)
     expect(f.service.getStagedImageBuffer).not.toHaveBeenCalled()
-    await expect(f.listeners['chatluna-memes/createCollection'].callback.call({ auth: { ...f.token, token: suppliedToken } }, 'a')).rejects.toThrow('Unauthorized')
+    await expect(f.listeners['chatluna-memes/createCollection'].callback.call({ auth: { ...f.token, token: suppliedToken } }, 'a')).rejects.toThrow('请登录有管理权限的 Console 账号')
     expect(f.service.deleteCollection).not.toHaveBeenCalled()
   })
   it('匿名上传在解析前拒绝，公开图片路由仍可访问', async () => {
