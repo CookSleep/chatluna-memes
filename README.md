@@ -79,7 +79,7 @@
 
 ## 🔁 从 memesluna 迁移
 
-本项目由 [memesluna](https://github.com/lumia1998/koishi-plugin-memesluna) 改名独立而来。首次启动时会自动迁移原插件的数据，只执行一次：
+本项目是 fork [lumia1998/memesluna](https://github.com/lumia1998/koishi-plugin-memesluna) 后修改并独立发布的插件。首次启动时会自动迁移原插件的数据，只执行一次：
 
 - **设置**：读取原插件在管理页保存的设置，没有则读取 koishi.yml 中原插件的配置。原来的默认前缀 `/memesluna` 改为 `/chatluna-memes`，自定义的前缀保留。
 - **数据**：复制 `data/memesluna` 中的图片，以及 `memesluna_*` 数据表中的表情包、外部图源和暂缓区记录。
