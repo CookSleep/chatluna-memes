@@ -32,11 +32,11 @@ src/
   settings.ts           设置的类型、默认值和校验，前后端共用，不要引入 koishi
   settings-store.ts     设置的读写（data/chatluna-memes/.settings.json），保存后发出 chatluna-memes/settings-updated
   migration.ts          首次启动时迁移 memesluna 的设置、数据表和图片，状态记在 chatluna_memes_meta 表
-  service.ts            ChatLunaMemesService：合集、图片、外部图源、暂缓区的存储与数据库读写
+  service.ts            ChatLunaMemesService：合集、图片、外部图源、待审区的存储与数据库读写
   http-server.ts        HTTP 路由：随机图、302 跳转、上传、管理接口
   console-handlers.ts   Console RPC 监听器（全部经过 requireConsoleAdmin；启用 auth 插件时才鉴权）
   console-rpc.ts        前后端共享的 RPC 类型，前端直接 import
-  auto-collect.ts       群聊高频图片自动收集到暂缓区
+  auto-collect.ts       群聊高频图片自动收集到待审区
   commands.ts           聊天命令（偷图、批量标注等）
   aiAnnotator.ts / annotation-*.ts / aiUsageTracker.ts   AI 标注队列、调度与用量统计
   search.ts / similarity.ts                               关键词检索与感知哈希相似度
@@ -46,7 +46,7 @@ client/
   Dashboard.vue         根组件，provide 整个 dashboard 上下文
   composables/
     useDashboard.ts     组合入口：基础状态、表情包与图库、上传、预览页，并汇总下列模块
-    useStaging.ts       暂缓区
+    useStaging.ts       待审区
     useEndpoints.ts     外部图源
     useMetadataEditor.ts 标签与别名编辑
     useDialog.ts        自定义确认、输入、选择对话框
@@ -58,7 +58,7 @@ client/
 tests/                  Vitest 用例
 ```
 
-术语统一使用：**表情包**（合集，collection）、**外部图源**（endpoint，外部随机图片 API）、**暂缓区**（staging）、**预览**。代码标识符保持英文原名，界面和文档使用中文术语，不要再使用「分发管理」「端点」等旧说法。
+术语统一使用：**表情包**（合集，collection）、**外部图源**（endpoint，外部随机图片 API）、**待审区**（staging）、**预览**。代码标识符保持英文原名，界面和文档使用中文术语，不要再使用「分发管理」「端点」等旧说法。
 
 ## 代码风格（必须遵守）
 

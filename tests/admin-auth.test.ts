@@ -107,7 +107,7 @@ describe('管理权限边界', () => {
     expect(image.status).toBe(200)
     expect(await image.text()).toBe('image')
   })
-  it('合法用户可通过 RPC 管理、HTTP 上传及读取暂缓区预览', async () => {
+  it('合法用户可通过 RPC 管理、HTTP 上传及读取待审区预览', async () => {
     const f = await fixture()
     await expect(f.listeners['chatluna-memes/createCollection'].callback.call({ auth: f.token }, 'a')).resolves.toBe(true)
     const headers = { Authorization: `Bearer ${f.token.token}` }

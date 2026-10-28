@@ -25,7 +25,7 @@ interface StagingDeps {
   loadCollectionResources: (name: string) => Promise<void>
 }
 
-/** 暂缓区：列表、相似分组、多选以及归档和删除。 */
+/** 待审区：列表、相似分组、多选以及归档和删除。 */
 export function useStaging({ loading, currentCollection, showToast, confirmDialog, pickCollection, fetchState, loadCollectionResources }: StagingDeps) {
   const stagedImages = ref<StagedImageInfo[]>([])
   const stagingSearch = ref('')
@@ -136,7 +136,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
       await refreshStagedImages()
       await fetchState()
     } catch (err) {
-      showToast(err instanceof Error ? err.message : '批量删除暂缓图片失败', 'error')
+      showToast(err instanceof Error ? err.message : '批量删除待审图片失败', 'error')
     } finally {
       loading.value = false
     }
@@ -144,7 +144,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
 
   async function confirmDeleteAllStagedImages() {
     if (!stagedImages.value.length) return
-    if (!await confirmDialog({ title: '清空暂缓区？', message: `将删除全部 ${stagedImages.value.length} 张待审核图片，无法恢复。`, confirmText: '全部删除', danger: true })) return
+    if (!await confirmDialog({ title: '清空待审区？', message: `将删除全部 ${stagedImages.value.length} 张待审核图片，无法恢复。`, confirmText: '全部删除', danger: true })) return
 
     try {
       loading.value = true
@@ -154,7 +154,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
       await refreshStagedImages()
       await fetchState()
     } catch (err) {
-      showToast(err instanceof Error ? err.message : '清空暂缓区失败', 'error')
+      showToast(err instanceof Error ? err.message : '清空待审区失败', 'error')
     } finally {
       loading.value = false
     }
@@ -173,7 +173,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
         stagingViewMode.value = 'all'
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : '刷新暂缓区失败', 'error')
+      showToast(err instanceof Error ? err.message : '刷新待审区失败', 'error')
     }
   }
   async function loadSimilarStagedImages() {
@@ -222,7 +222,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
         delete stagingTargetCollection.value[item.id]
         selectedStagedIds.value = new Set([...selectedStagedIds.value].filter((id) => id !== item.id))
       } else {
-        showToast('暂缓图片不存在或已被处理', 'error')
+        showToast('待审图片不存在或已被处理', 'error')
       }
       await refreshStagedImages()
       await fetchState()
@@ -230,7 +230,7 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
         await loadCollectionResources(target)
       }
     } catch (err) {
-      showToast(err instanceof Error ? err.message : '归档暂缓图片失败', 'error')
+      showToast(err instanceof Error ? err.message : '归档待审图片失败', 'error')
     } finally {
       stagingBusyId.value = ''
     }
@@ -296,12 +296,12 @@ export function useStaging({ loading, currentCollection, showToast, confirmDialo
         showToast('已删除', 'success')
         delete stagingTargetCollection.value[item.id]
       } else {
-        showToast('暂缓图片不存在或已被处理', 'error')
+        showToast('待审图片不存在或已被处理', 'error')
       }
       await refreshStagedImages()
       await fetchState()
     } catch (err) {
-      showToast(err instanceof Error ? err.message : '删除暂缓图片失败', 'error')
+      showToast(err instanceof Error ? err.message : '删除待审图片失败', 'error')
     } finally {
       stagingBusyId.value = ''
     }

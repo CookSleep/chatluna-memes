@@ -178,7 +178,7 @@ describe('图片存储一致性', () => {
     expect(await fs.readFile(path.join(root, 'source/a.png'), 'utf8')).toBe('source')
   })
 
-  it('归档暂缓区删除失败时撤销新图片，暂缓区保持可用', async () => {
+  it('归档待审区删除失败时撤销新图片，待审区保持可用', async () => {
     const { service, root, database, tables } = await fixture()
     const staged = await service.addStagedImageBuffer(Buffer.from('source'), 'a.png')
     database.remove.mockRejectedValueOnce(new Error('database unavailable'))

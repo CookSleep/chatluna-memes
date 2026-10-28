@@ -156,7 +156,7 @@ export function applyAutoCollect(ctx: Context, config: Settings) {
         // 在任何 await 之前标记，避免并发消息重复计入每日上限。
         markImageFrequencyStaged(hash, groupId, autoCollectFrequencyTracker)
 
-        // 没收进暂缓区（达到上限或出错）就撤销标记，图片再次出现时还能收集。
+        // 没收进待审区（达到上限或出错）就撤销标记，图片再次出现时还能收集。
         let collected = false
         try {
           if (await service.getDuplicateImageByHash(hash, { includeStaged: true, includeImages: true })) {

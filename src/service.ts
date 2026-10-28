@@ -721,7 +721,7 @@ export class ChatLunaMemesService extends Service {
         try {
           const fullPath = this.resolveStagedImagePath(staged.filename)
           await fs.access(fullPath)
-          return `暂缓区/${staged.original_name || staged.filename}`
+          return `待审区/${staged.original_name || staged.filename}`
         } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
           await this.ctx.database.remove('chatluna_memes_staged_images', { id: staged.id })
@@ -790,7 +790,7 @@ export class ChatLunaMemesService extends Service {
         available: true,
         threshold: normalizedThreshold,
         groups: [],
-        message: rows.length ? '暂缓区图片暂未生成可比较的感知哈希' : '暂缓区暂无图片',
+        message: rows.length ? '待审区图片暂未生成可比较的感知哈希' : '待审区暂无图片',
       }
     }
 
@@ -805,7 +805,7 @@ export class ChatLunaMemesService extends Service {
       available: true,
       threshold: normalizedThreshold,
       groups,
-      message: groups.length ? `找到 ${groups.length} 组相似图片` : '暂缓区没有达到阈值的相似图片',
+      message: groups.length ? `找到 ${groups.length} 组相似图片` : '待审区没有达到阈值的相似图片',
     }
   }
   private isValidCollectionName(name: string): boolean {
@@ -1472,7 +1472,7 @@ export class ChatLunaMemesService extends Service {
     const staged = await this.getStagedImageBuffer(id)
     if (!staged) return null
 
-    // 写入表情包成功后才删除暂缓区图片；中途失败则撤销本次新建的图片。
+    // 写入表情包成功后才删除待审区图片；中途失败则撤销本次新建的图片。
     let savedResult: any
     try {
       const originalName = this.isImageFile(row.original_name) ? row.original_name : row.filename

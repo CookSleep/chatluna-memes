@@ -34,7 +34,7 @@ import { defineComponent, ref } from 'vue'
 import Icon from './Icon.vue'
 import ModalShell from './ModalShell.vue'
 
-/** 多选后固定在列表底部的操作栏，图库和暂缓区共用。 */
+/** 多选后固定在列表底部的操作栏，图库和待审区共用。 */
 export default defineComponent({
   name: 'SelectionBar',
   components: { Icon, ModalShell },

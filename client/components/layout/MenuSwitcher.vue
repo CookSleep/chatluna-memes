@@ -29,7 +29,7 @@ export default defineComponent({
       { key: 'config' as const, label: '配置', count: undefined, alert: false, icon: 'sliders' as const },
       { key: 'resources' as const, label: '表情包', count: ctx.collections.value.length, icon: 'smile' as const },
       { key: 'distribution' as const, label: '外部图源', count: ctx.endpoints.value.length, icon: 'link' as const },
-      { key: 'staging' as const, label: '暂缓区', count: ctx.stagedImages.value.length, alert: ctx.stagedImages.value.length > 0, icon: 'inbox' as const },
+      { key: 'staging' as const, label: '待审区', count: ctx.stagedImages.value.length, alert: ctx.stagedImages.value.length > 0, icon: 'inbox' as const },
       { key: 'preview' as const, label: '预览', count: undefined, alert: false, icon: 'eye' as const },
     ])
     return { ...ctx, tabs }

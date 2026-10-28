@@ -145,7 +145,7 @@ export async function migrateLegacyData(ctx: Context, root: string, enabled = tr
   const result: DataMigrationResult = { state: 'done', finishedAt: new Date().toISOString(), counts }
   await writeMigrationState(ctx, result)
   logger.info(
-    `迁移完成：${counts.memesluna_images} 张图片和外链、${counts.memesluna_endpoints} 个外部图源、${counts.memesluna_staged_images} 张暂缓区图片。`
+    `迁移完成：${counts.memesluna_images} 张图片和外链、${counts.memesluna_endpoints} 个外部图源、${counts.memesluna_staged_images} 张待审区图片。`
     + `原数据仍保留在 ${LEGACY_ROOT} 和 memesluna_* 数据表中，确认无误后可以手动删除，之后不会再次迁移。`,
   )
   return result

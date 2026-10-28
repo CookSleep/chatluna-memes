@@ -702,11 +702,11 @@ export function useDashboard() {
     if (!uploadableFiles.length) {
       if (stagedCount > 0) {
         const avifHint = avifFiles.length ? `，${avifFiles.length} 张 AVIF 已直接拦截` : ''
-        showToast(`${stagedCount} 张超大图片已放入暂缓区${avifHint}`, 'success')
+        showToast(`${stagedCount} 张超大图片已放入待审区${avifHint}`, 'success')
       } else if (avifFiles.length) {
         showToast('暂不支持 AVIF，请先转成 JPG、PNG、GIF 或 WEBP', 'error')
       } else {
-        showToast('超大图片放入暂缓区失败', 'error')
+        showToast('超大图片放入待审区失败', 'error')
       }
       await fetchState()
       return
@@ -751,7 +751,7 @@ export function useDashboard() {
     }
 
     uploadProgress.value = null
-    const stagedHint = stagedCount ? `，另有 ${stagedCount} 张进入暂缓区` : ''
+    const stagedHint = stagedCount ? `，另有 ${stagedCount} 张进入待审区` : ''
     const avifHint = avifFiles.length ? `，${avifFiles.length} 张 AVIF 已直接拦截` : ''
 
     if (successCount > 0) {

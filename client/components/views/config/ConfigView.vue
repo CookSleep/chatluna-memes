@@ -119,7 +119,7 @@
             <span class="cm-config-icon"><Icon name="inbox" /></span>
             <div class="cm-config-heading">
               <h3>自动收集</h3>
-              <p class="cm-hint">监听群聊图片，同一张图短时间内反复出现时放进暂缓区，由你确认后再归档。</p>
+              <p class="cm-hint">监听群聊图片，同一张图短时间内反复出现时放进待审区，由你确认后再归档。</p>
             </div>
             <SwitchToggle v-model="configDraft.autoCollect" label="自动收集群聊图片" />
           </header>
@@ -128,7 +128,7 @@
             <div class="cm-setting">
               <div class="cm-setting-text">
                 <label>触发条件</label>
-                <p>在同一个群里统计，已经在表情包或暂缓区里的图片不会重复收集。</p>
+                <p>在同一个群里统计，已经在表情包或待审区里的图片不会重复收集。</p>
               </div>
               <div class="cm-setting-control">
                 <div class="cm-setting-inline">
@@ -162,7 +162,7 @@
             <div class="cm-setting">
               <div class="cm-setting-text">
                 <label>每群每日上限</label>
-                <p>防止刷屏时暂缓区被塞满，按自然日计数。</p>
+                <p>防止刷屏时待审区被塞满，按自然日计数。</p>
               </div>
               <div class="cm-setting-control">
                 <SettingNumber v-model="configDraft.groupAutoCollectLimit" unit="张" label="每群每日上限" :min="rules.groupAutoCollectLimit.min" :max="rules.groupAutoCollectLimit.max" :error="configErrors.groupAutoCollectLimit" />
@@ -176,7 +176,7 @@
           <header class="cm-config-head">
             <span class="cm-config-icon"><Icon name="layers" /></span>
             <div class="cm-config-heading">
-              <h3>暂缓区</h3>
+              <h3>待审区</h3>
               <p class="cm-hint">待确认的图片不参与随机发图，归档到表情包后才会生效。</p>
             </div>
           </header>
@@ -205,7 +205,7 @@
           <div class="cm-setting">
             <div class="cm-setting-text">
               <label>自动清理</label>
-              <p>从图片进入暂缓区开始计算，过期后直接删除。</p>
+              <p>从图片进入待审区开始计算，过期后直接删除。</p>
             </div>
             <div class="cm-setting-control">
               <div class="cm-setting-inline">
@@ -271,7 +271,7 @@
             <div class="cm-setting is-switch">
               <div class="cm-setting-text">
                 <label>自动标注</label>
-                <p>上传、偷图和从暂缓区归档后自动排队标注。关闭后仍可在图片的编辑弹窗里手动识别，或使用 <code>chatluna.memes.tagall</code>。</p>
+                <p>上传、偷图和从待审区归档后自动排队标注。关闭后仍可在图片的编辑弹窗里手动识别，或使用 <code>chatluna.memes.tagall</code>。</p>
               </div>
               <div class="cm-setting-control">
                 <SwitchToggle v-model="configDraft.autoAnnotate" label="自动标注新图片" />
@@ -366,7 +366,7 @@ const sections = [
   { id: 'cm-config-access', label: '访问地址', icon: 'globe', keys: ['selfUrl', 'backendPath'] },
   { id: 'cm-config-chatluna', label: 'ChatLuna 注入', icon: 'message', keys: ['injectVariables', 'injectVariablesPrompt'] },
   { id: 'cm-config-collect', label: '自动收集', icon: 'inbox', keys: ['autoCollect', 'emojiFrequencyWindowMinutes', 'emojiFrequencyThreshold', 'minEmojiSize', 'maxEmojiSize', 'groupAutoCollectLimit'] },
-  { id: 'cm-config-staging', label: '暂缓区', icon: 'layers', keys: ['similarityThreshold', 'stagingRetentionDays'] },
+  { id: 'cm-config-staging', label: '待审区', icon: 'layers', keys: ['similarityThreshold', 'stagingRetentionDays'] },
   { id: 'cm-config-ai', label: 'AI 标注', icon: 'sparkles', keys: ['model', 'autoAnnotate', 'aiDailyLimit', 'annotatePrompt', 'aiConcurrency', 'aiMaxAttempts', 'aiRetryDelay', 'aiRequestTimeout'] },
 ] as const
 

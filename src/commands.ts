@@ -94,7 +94,7 @@ export function registerCommands(ctx: Context, config: Settings) {
 
     if (successCount === 0) {
       if (incompatibleCount > 0 && failedCount === 0) {
-        return '偷表情包失败，图片格式不兼容。仅支持 JPG/PNG/GIF/WEBP/BMP 格式图片（已拒绝 AVIF，且不会放入暂缓区）。'
+        return '偷表情包失败，图片格式不兼容。仅支持 JPG/PNG/GIF/WEBP/BMP 格式图片（已拒绝 AVIF，且不会放入待审区）。'
       }
       return '偷表情包失败，下载图片或上传保存时发生错误。'
     }

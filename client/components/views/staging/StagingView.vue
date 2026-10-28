@@ -2,7 +2,7 @@
   <section class="cm-view">
     <header class="cm-view-head">
       <div class="cm-view-title">
-        <h1 class="cm-title">暂缓区</h1>
+        <h1 class="cm-title">待审区</h1>
         <div class="cm-actions">
           <button type="button" class="cm-btn" @click="refreshStagedImages"><Icon name="refresh" />刷新</button>
           <button v-if="stagedImages.length" type="button" class="cm-btn is-danger-soft" @click="confirmDeleteAllStagedImages"><Icon name="trash" />全部清空</button>
@@ -16,10 +16,10 @@
       <span v-if="!autoCollect">正在读取自动收集配置…</span>
       <span v-else-if="autoCollect.enabled">
         自动收集已开启：同一个群 {{ autoCollect.windowMinutes }} 分钟内同一张图出现 {{ autoCollect.threshold }} 次就会收进来。<br />
-        只收集 {{ autoCollect.minSizeKB }} KB ~ {{ autoCollect.maxSizeMB }} MB 的图片，每群每天最多 {{ autoCollect.dailyLimit }} 张；已在表情包或暂缓区里的图片不会重复收集。
+        只收集 {{ autoCollect.minSizeKB }} KB ~ {{ autoCollect.maxSizeMB }} MB 的图片，每群每天最多 {{ autoCollect.dailyLimit }} 张；已在表情包或待审区里的图片不会重复收集。
       </span>
       <span v-else>
-        自动收集未开启，群聊里的图片不会进入暂缓区。<br />
+        自动收集未开启，群聊里的图片不会进入待审区。<br />
         目前只有一种情况会进来：在管理页上传图片时，超过 10 MB 的会先放在这里等你确认。<br />
         想收集群聊里的高频表情，可以在<button type="button" class="cm-inline-link" @click="openConfig('cm-config-collect')">「配置」</button>中开启自动收集。
       </span>
@@ -29,7 +29,7 @@
       <div class="cm-empty-icon">
         <Icon name="inbox" />
       </div>
-      <h3>暂缓区是空的</h3>
+      <h3>待审区是空的</h3>
       <p>有新图片进来时会显示在这里。</p>
     </div>
 
