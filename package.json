@@ -1,7 +1,7 @@
 {
   "name": "koishi-plugin-chatluna-memes",
   "description": "为 ChatLuna 提供表情包：管理本地表情包和外部随机图源，注入随机图清单让模型发表情，支持 AI 标注与群聊高频图片收集",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "homepage": "https://github.com/CookSleep/chatluna-memes",
   "repository": {
     "type": "git",
