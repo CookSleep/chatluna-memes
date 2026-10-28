@@ -21,7 +21,7 @@ declare module 'koishi' {
 }
 
 export interface DataMigrationResult {
-  state: 'done' | 'no-legacy-data'
+  state: 'done' | 'no-legacy-data' | 'skipped'
   finishedAt: string
   counts?: Record<string, number>
 }
@@ -98,11 +98,23 @@ async function writeMigrationState(ctx: Context, result: DataMigrationResult) {
 /**
  * 把原插件的数据库记录和图片文件复制过来，完成后记录状态，以后不再迁移。
  * 中途失败时不记录状态，下次启动重新执行；复制不覆盖已有文件，记录按主键 upsert，重复执行不会产生重复数据。
+ * 关闭迁移时记为 skipped，之后再开启也不补做：那时本插件已有自己的数据，再迁移会和原记录冲突。
  */
-export async function migrateLegacyData(ctx: Context, root: string): Promise<DataMigrationResult | undefined> {
+export async function migrateLegacyData(ctx: Context, root: string, enabled = true): Promise<DataMigrationResult | undefined> {
   if (await readMigrationState(ctx)) return
   const logger = ctx.logger('chatluna-memes')
   const legacyRoot = path.resolve(ctx.baseDir, LEGACY_ROOT)
+  if (existsSync(legacyRoot) && !enabled) {
+    // 上次迁移中断时已写入部分记录，这时跳过会让同步目录给已复制的图片另建记录，之后无法再补全。
+    for (const table of Object.values(LEGACY_TABLES)) {
+      const [partial] = await (ctx.database as any).get(table, {}, { limit: 1, fields: ['id'] })
+      if (partial) throw new Error('上次迁移 memesluna 的数据时中断，已写入部分记录，不能跳过。请开启 migrateMemesluna 后重启 Koishi 完成迁移')
+    }
+    const result: DataMigrationResult = { state: 'skipped', finishedAt: new Date().toISOString() }
+    await writeMigrationState(ctx, result)
+    logger.info('已按配置跳过 memesluna 数据的迁移，之后不会再迁移')
+    return result
+  }
   if (!existsSync(legacyRoot)) {
     const result: DataMigrationResult = { state: 'no-legacy-data', finishedAt: new Date().toISOString() }
     await writeMigrationState(ctx, result)
@@ -123,8 +135,10 @@ export async function migrateLegacyData(ctx: Context, root: string): Promise<Dat
   for (const [legacyTable, table] of Object.entries(LEGACY_TABLES)) {
     const rows = await (ctx.database as any).get(legacyTable, {})
     if (rows.length) await (ctx.database as any).upsert(table, rows)
-    const migrated = await (ctx.database as any).get(table, { id: rows.map((row: any) => row.id) }, ['id'])
-    if (migrated.length !== rows.length) throw new Error(`迁移 ${legacyTable} 后记录数不一致：${rows.length} → ${migrated.length}`)
+    // 不按 id 用 IN 查询：SQLite 驱动（sql.js）遇到上千项的 IN 会在 wasm 里越界崩溃。
+    const existing = new Set((await (ctx.database as any).get(table, {}, ['id'])).map((row: any) => row.id))
+    const migrated = rows.filter((row: any) => existing.has(row.id)).length
+    if (migrated !== rows.length) throw new Error(`迁移 ${legacyTable} 后记录数不一致：${rows.length} → ${migrated}`)
     counts[legacyTable] = rows.length
   }
 

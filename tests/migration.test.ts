@@ -4,6 +4,7 @@ import os from 'os'
 import path from 'path'
 import { migrateLegacyData, migrateLegacySettings } from '../src/migration'
 import { DEFAULT_SETTINGS } from '../src/settings'
+import { SettingsStore } from '../src/settings-store'
 
 const roots: string[] = []
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true }))) })
@@ -112,5 +113,63 @@ describe('migrateLegacyData', () => {
     expect(await migrateLegacyData(context(baseDir, database), path.join(baseDir, 'data/chatluna-memes'))).toMatchObject({ state: 'no-legacy-data' })
     expect(database.extend).not.toHaveBeenCalled()
     expect(database.tables.chatluna_memes_meta).toHaveLength(1)
+  })
+
+  it('skips the migration when disabled and never migrates afterwards', async () => {
+    const baseDir = await tempDir()
+    const root = path.join(baseDir, 'data/chatluna-memes')
+    await fs.mkdir(path.join(baseDir, 'data/memesluna/猫猫'), { recursive: true })
+    await fs.writeFile(path.join(baseDir, 'data/memesluna/猫猫/1.png'), 'cat')
+    const database = memoryDatabase({ memesluna_images: [{ id: 'a', collection: '猫猫', index: 1 }] })
+    const ctx = context(baseDir, database)
+
+    expect(await migrateLegacyData(ctx, root, false)).toMatchObject({ state: 'skipped' })
+    await expect(fs.access(root)).rejects.toThrow()
+    expect(database.extend).not.toHaveBeenCalled()
+    expect(database.tables.chatluna_memes_images).toBeUndefined()
+
+    expect(await migrateLegacyData(ctx, root)).toBeUndefined()
+    expect(database.tables.chatluna_memes_images).toBeUndefined()
+  })
+
+  it('records that there is nothing to migrate even when disabled', async () => {
+    const baseDir = await tempDir()
+    expect(await migrateLegacyData(context(baseDir, memoryDatabase({})), path.join(baseDir, 'data/chatluna-memes'), false)).toMatchObject({ state: 'no-legacy-data' })
+  })
+
+  it('refuses to skip after an interrupted migration', async () => {
+    const baseDir = await tempDir()
+    await fs.mkdir(path.join(baseDir, 'data/memesluna'), { recursive: true })
+    const database = memoryDatabase({ chatluna_memes_endpoints: [{ id: 'e' }] })
+    await expect(migrateLegacyData(context(baseDir, database), path.join(baseDir, 'data/chatluna-memes'), false)).rejects.toThrow('不能跳过')
+    expect(database.tables.chatluna_memes_meta).toBeUndefined()
+  })
+
+  it('verifies migrated rows without querying ids with IN', async () => {
+    const baseDir = await tempDir()
+    await fs.mkdir(path.join(baseDir, 'data/memesluna'), { recursive: true })
+    const rows = Array.from({ length: 3000 }, (_, i) => ({ id: `id-${i}`, collection: '猫猫', index: i }))
+    const database = memoryDatabase({ memesluna_images: rows, memesluna_endpoints: [], memesluna_staged_images: [] })
+
+    const result = await migrateLegacyData(context(baseDir, database), path.join(baseDir, 'data/chatluna-memes'))
+    expect(result).toMatchObject({ state: 'done', counts: { memesluna_images: 3000 } })
+    expect(database.get.mock.calls.some(([, query]) => Array.isArray(query.id))).toBe(false)
+  })
+})
+
+describe('SettingsStore', () => {
+  async function storeWith(migrate: boolean) {
+    const baseDir = await tempDir()
+    const loader = { config: { plugins: { 'memesluna:abc': { autoCollect: true, backendPath: '/emoji' } } } }
+    const ctx = { ...context(baseDir, memoryDatabase({})), loader }
+    return new SettingsStore(ctx, migrate).value
+  }
+
+  it('migrates memesluna settings on first run', async () => {
+    expect(await storeWith(true)).toMatchObject({ autoCollect: true, backendPath: '/emoji' })
+  })
+
+  it('uses defaults when migration is disabled', async () => {
+    expect(await storeWith(false)).toMatchObject({ autoCollect: DEFAULT_SETTINGS.autoCollect, backendPath: DEFAULT_SETTINGS.backendPath })
   })
 })

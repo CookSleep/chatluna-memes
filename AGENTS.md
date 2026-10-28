@@ -28,7 +28,7 @@
 ```
 src/
   index.ts              插件入口：注册服务，并按依赖用 ctx.inject 挂载各功能
-  config.ts             Koishi 配置 Schema（为空）和插件配置页上的说明
+  config.ts             Koishi 配置 Schema（只有 migrateMemesluna）和插件配置页上的说明
   settings.ts           设置的类型、默认值和校验，前后端共用，不要引入 koishi
   settings-store.ts     设置的读写（data/chatluna-memes/.settings.json），保存后发出 chatluna-memes/settings-updated
   migration.ts          首次启动时迁移 memesluna 的设置、数据表和图片，状态记在 chatluna_memes_meta 表
@@ -108,7 +108,7 @@ tests/                  Vitest 用例
 - 新的 Console RPC 统一用 `addListener` 注册，自动带管理员鉴权；同时在 `console-rpc.ts` 的 `ChatLunaMemesConsoleEvents` 中补类型。
 - 写文件和数据库的操作走 `withStorageLock`，失败时回滚，参考 `service.ts` 里的现有写法。
 - 消息元素同时选择 `img` 和 `image`：OneBot 等适配器产出的是 `img`。
-- 用户设置不进 Koishi 配置 Schema。新增设置项时同步修改 `settings.ts`（类型、默认值、校验）和「配置」页 `ConfigView.vue`；运行时直接读共享的设置对象，只在挂载时读取设置的功能要在 `index.ts` 里用 `reloadOn` 声明依赖的键。
+- 用户设置不进 Koishi 配置 Schema，唯一的例外是 `migrateMemesluna`：它必须在首次启动、管理页可用之前生效。新增设置项时同步修改 `settings.ts`（类型、默认值、校验）和「配置」页 `ConfigView.vue`；运行时直接读共享的设置对象，只在挂载时读取设置的功能要在 `index.ts` 里用 `reloadOn` 声明依赖的键。
 
 ## 错误处理与日志
 

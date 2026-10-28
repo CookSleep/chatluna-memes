@@ -7,6 +7,7 @@ import { applyAutoCollect } from './auto-collect'
 import { applyChatlunaVariables } from './chatluna-inject'
 import { registerCommands } from './commands'
 import { applyConsole } from './console-handlers'
+import type { Config } from './config'
 import { applyServer } from './http-server'
 import { invalidateAllImagesCache } from './search'
 import {
@@ -27,12 +28,12 @@ function reloadOn(ctx: Context, keys: (keyof Settings)[], plugin: (ctx: Context)
   })
 }
 
-export function apply(ctx: Context) {
-  const store = new SettingsStore(ctx)
+export function apply(ctx: Context, config: Config) {
+  const store = new SettingsStore(ctx, config.migrateMemesluna)
   const settings = store.value
 
   ;(ctx as any).on(CHATLUNA_MEMES_IMAGES_UPDATED, invalidateAllImagesCache)
-  ctx.plugin(ChatLunaMemesService, settings)
+  ctx.plugin(ChatLunaMemesService, { settings, migrateLegacyData: config.migrateMemesluna })
 
   // 用到 ctx.chatluna_memes 的功能必须通过 inject 声明依赖。
   ctx.inject(['chatluna_memes'], (ctx) => {

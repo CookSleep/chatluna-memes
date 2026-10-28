@@ -17,7 +17,7 @@ export class SettingsStore {
   readonly value: Settings
   readonly filename: string
 
-  constructor(private ctx: Context) {
+  constructor(private ctx: Context, private migrateLegacy = true) {
     this.filename = path.resolve(ctx.baseDir, 'data/chatluna-memes/.settings.json')
     this.value = this.load()
   }
@@ -31,7 +31,7 @@ export class SettingsStore {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       // 只在第一次启动（数据目录还不存在）时迁移，之后删掉设置文件就是恢复默认。
       const firstRun = !existsSync(path.dirname(this.filename))
-      const migrated = firstRun ? migrateLegacySettings(this.ctx.baseDir, (this.ctx as any).loader?.config?.plugins) : null
+      const migrated = firstRun && this.migrateLegacy ? migrateLegacySettings(this.ctx.baseDir, (this.ctx as any).loader?.config?.plugins) : null
       const settings = migrated ?? resolveSettings({})
       try {
         mkdirSync(path.dirname(this.filename), { recursive: true })

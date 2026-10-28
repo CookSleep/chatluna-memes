@@ -224,7 +224,16 @@ interface ChatLunaMemesStagedImageRow {
   perceptual_hash: string
 }
 
+const REMOVE_BATCH_SIZE = 500
+
+export interface ChatLunaMemesServiceOptions {
+  settings: Settings
+  /** 首次启动时是否迁移 memesluna 的数据，见 migrateLegacyData。 */
+  migrateLegacyData: boolean
+}
+
 export class ChatLunaMemesService extends Service {
+  declare config: Settings
   private _readyPromise: Promise<void>
   private _readyResolve: () => void
   private _readyReject: (error: unknown) => void
@@ -233,8 +242,9 @@ export class ChatLunaMemesService extends Service {
   /** 批量和手动标注共享生命周期及进度统计。 */
   private _annotationQueue = new AnnotationQueue()
 
-  constructor(ctx: Context, public config: Settings) {
+  constructor(ctx: Context, options: ChatLunaMemesServiceOptions) {
     super(ctx, 'chatluna_memes', true)
+    this.config = options.settings
     this.defineDatabase()
 
     this._readyPromise = new Promise((resolve, reject) => {
@@ -247,7 +257,7 @@ export class ChatLunaMemesService extends Service {
       try {
         await withStorageLock(this.getStorageRoot(), async () => {
           // 迁移失败时不继续启动：同步目录会给已复制的图片另建记录，下次重试时就和原记录冲突了。
-          await migrateLegacyData(ctx, this.getStorageRoot()).catch((error) => {
+          await migrateLegacyData(ctx, this.getStorageRoot(), options.migrateLegacyData).catch((error) => {
             ctx.logger('chatluna-memes').error('迁移 memesluna 的数据失败，插件没有启动，排查后重启 Koishi 会重新迁移:', error)
             throw error
           })
@@ -511,9 +521,10 @@ export class ChatLunaMemesService extends Service {
       const missingLocalImages = existingImages.filter(
         (img) => img.type === 'local' && !filesSet.has(img.value || img.filename)
       )
-      if (missingLocalImages.length > 0) {
+      // SQLite 驱动（sql.js）遇到上千项的 IN 查询会在 wasm 里越界崩溃，所以分批删除。
+      for (let i = 0; i < missingLocalImages.length; i += REMOVE_BATCH_SIZE) {
         await this.ctx.database.remove('chatluna_memes_images', {
-          id: missingLocalImages.map((img) => img.id),
+          id: missingLocalImages.slice(i, i + REMOVE_BATCH_SIZE).map((img) => img.id),
         })
       }
 
