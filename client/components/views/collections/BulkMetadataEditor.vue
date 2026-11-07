@@ -22,7 +22,7 @@
         <div class="cm-field-label"><span>语义标签</span></div>
         <div class="cm-chip-box">
           <span v-for="tag in bulkTagEditorTags" :key="tag" class="cm-tag is-removable" :style="{ '--tag-hue': tagHue(tag) }">
-            {{ tag }}
+            <span class="cm-tag-text" :title="tag">{{ tag }}</span>
             <button type="button" :disabled="bulkTagEditorSaving" @click="removeTagFromBulkEditor(tag)">×</button>
           </span>
           <input v-model="bulkTagEditorInput" class="cm-chip-input" placeholder="输入后按回车添加" :disabled="bulkTagEditorSaving" @keydown.enter.prevent="$event.isComposing || addTagToBulkEditor()" />
@@ -33,7 +33,7 @@
         <div class="cm-field-label"><span>检索别名</span></div>
         <div class="cm-chip-box">
           <span v-for="alias in bulkTagEditorAliases" :key="alias" class="cm-tag is-alias is-removable">
-            {{ alias }}
+            <span class="cm-tag-text" :title="alias">{{ alias }}</span>
             <button type="button" :disabled="bulkTagEditorSaving" @click="removeAliasFromBulkEditor(alias)">×</button>
           </span>
           <input v-model="bulkAliasEditorInput" class="cm-chip-input" placeholder="输入后按回车添加" :disabled="bulkTagEditorSaving" @keydown.enter.prevent="$event.isComposing || addAliasToBulkEditor()" />

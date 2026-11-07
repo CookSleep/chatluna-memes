@@ -23,7 +23,7 @@
             </div>
             <div class="cm-chip-box">
               <span v-for="tag in tagEditorTags" :key="tag" class="cm-tag is-removable" :style="{ '--tag-hue': tagHue(tag) }">
-                {{ tag }}
+                <span class="cm-tag-text" :title="tag">{{ tag }}</span>
                 <button type="button" :disabled="aiAnnotating" title="移除" @click="removeTagFromEditor(tag)">×</button>
               </span>
               <input
@@ -43,7 +43,7 @@
             </div>
             <div class="cm-chip-box">
               <span v-for="alias in tagEditorAliases" :key="alias" class="cm-tag is-alias is-removable">
-                {{ alias }}
+                <span class="cm-tag-text" :title="alias">{{ alias }}</span>
                 <button type="button" :disabled="aiAnnotating" title="移除" @click="removeAliasFromEditor(alias)">×</button>
               </span>
               <input

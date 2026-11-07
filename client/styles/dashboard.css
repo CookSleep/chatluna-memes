@@ -457,7 +457,10 @@ html.dark .cm-segmented button.is-active { background: var(--cm-hover); box-shad
 .cm-tag.is-alias { background: var(--cm-sunken); color: var(--cm-text-2); border-radius: 6px; }
 .cm-tag.is-more { background: var(--cm-sunken); color: var(--cm-text-3); }
 .cm-tag.is-removable { padding-right: 3px; }
+/* 文字单独截断，删除按钮不被挤出标签，超长标签也能删掉。 */
+.cm-tag-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .cm-tag button {
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -788,6 +791,9 @@ html.dark .cm-menu-sep { background: rgba(255, 255, 255, .08); }
 .cm-image-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 26px; color: var(--cm-text); font-size: 13px; font-weight: 500; }
 .cm-image-sub { margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cm-text-3); font-size: 12px; }
 .cm-tag-row { display: flex; gap: 4px; margin-top: 6px; overflow: hidden; }
+/* inline-flex 下省略号不生效，卡片里的标签只有文字，改成块级才能截断；放不下的由 TagRow 收进「+N」。 */
+.cm-tag-row .cm-tag { display: block; flex: none; line-height: 22px; }
+.cm-tag-row .cm-tag:first-child { flex-shrink: 1; min-width: 0; }
 .cm-image-info { position: relative; }
 .cm-image-menu { position: absolute; top: 5px; right: 5px; }
 

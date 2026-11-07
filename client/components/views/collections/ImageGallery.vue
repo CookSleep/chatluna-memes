@@ -72,10 +72,7 @@
           </button>
           <div class="cm-image-info">
             <div class="cm-image-name" :title="item.label">{{ item.label }}</div>
-            <div v-if="item.type === 'local' && getImageTags(item.value).length" class="cm-tag-row">
-              <span v-for="tag in getImageTags(item.value).slice(0, 3)" :key="tag" class="cm-tag" :style="{ '--tag-hue': tagHue(tag) }">{{ tag }}</span>
-              <span v-if="getImageTags(item.value).length > 3" class="cm-tag is-more">+{{ getImageTags(item.value).length - 3 }}</span>
-            </div>
+            <TagRow v-if="item.type === 'local' && getImageTags(item.value).length" :tags="getImageTags(item.value)" />
             <div v-else-if="item.type === 'local'" class="cm-image-sub">未标注</div>
             <div v-else class="cm-image-sub" :title="item.value">{{ item.value }}</div>
             <div class="cm-menu-anchor cm-image-menu" @click.stop>
@@ -121,12 +118,13 @@
 import { defineComponent, reactive } from 'vue'
 import Icon from '../../shared/Icon.vue'
 import SelectionBar from '../../shared/SelectionBar.vue'
+import TagRow from '../../shared/TagRow.vue'
 import { useDashboardContext } from '../../../composables/dashboardContext'
 import { useSelectionShortcuts } from '../../../utils/selection'
 
 export default defineComponent({
   name: 'ImageGallery',
-  components: { Icon, SelectionBar },
+  components: { Icon, SelectionBar, TagRow },
   setup() {
     const ctx = useDashboardContext()
     const brokenImages = reactive(new Set<string>())
