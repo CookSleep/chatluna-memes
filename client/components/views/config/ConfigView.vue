@@ -4,7 +4,7 @@
       <div class="cm-view-title">
         <h1 class="cm-title">配置</h1>
       </div>
-      <p class="cm-subtitle">插件的全部设置都在这里。保存后立即生效，不需要重启 Koishi。</p>
+      <p class="cm-subtitle">插件的全部设置都在这里。保存后立即生效，不需要重启 ChatLuna。</p>
     </header>
 
     <LoadingSpinner v-if="!configDraft || !configData" message="正在读取配置…" />
@@ -37,7 +37,7 @@
           <div class="cm-setting">
             <div class="cm-setting-text">
               <label for="cm-cfg-self-url">对外地址</label>
-              <p>机器人发图时使用的地址，需要包含协议和端口。留空则使用 Koishi 的地址<template v-if="configData.serverSelfUrl"> <code>{{ configData.serverSelfUrl }}</code></template>。</p>
+              <p>机器人发图时使用的地址，需要包含协议和端口。留空则使用 ChatLuna 的地址<template v-if="configData.serverSelfUrl"> <code>{{ configData.serverSelfUrl }}</code></template>。</p>
             </div>
             <div class="cm-setting-control">
               <input

@@ -1,4 +1,6 @@
-import { Context, h } from 'koishi'
+import type { Context } from 'cordis'
+import type {} from 'koishi'
+import { h, type Session } from '@satorijs/core'
 import type { Settings } from './settings'
 import { downloadImage } from './download'
 import { getMessageImages } from './auto-collect'
@@ -37,7 +39,7 @@ export function registerCommands(ctx: Context, config: Settings) {
       return lines.join('\n')
     })
 
-  const stoleAction = async (session: any, name: string) => {
+  const stoleAction = async (session: Session | undefined, name: string) => {
     if (!session) return
     if (!name) {
       return '使用方式：引用图片并回复 "偷了 [表情包名称]" 或 "chatluna.memes.stole [表情包名称]"'
@@ -48,7 +50,7 @@ export function registerCommands(ctx: Context, config: Settings) {
 
     try {
       if (!(await service.collectionExists(name))) {
-        return `表情包合集 "${name}" 不存在，请先在 Koishi Console 的 ChatLuna Memes 页面创建。`
+        return `表情包合集 "${name}" 不存在，请先在 ChatLuna Memes 管理页创建。`
       }
     } catch (err) {
       return `检查表情包失败: ${(err as Error).message}`

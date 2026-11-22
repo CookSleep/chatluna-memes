@@ -1,44 +1,86 @@
-import type { Context } from 'koishi'
+import { lookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
+import { aborted } from 'node:util'
+import { isBlockedAddress } from '@chatluna/search'
+import type { Context } from 'cordis'
+import type { Http } from '@cordisjs/plugin-http'
 import {
+  MAX_IMAGE_BYTES,
   IMAGE_DOWNLOAD_MAX_RETRIES,
   IMAGE_DOWNLOAD_TIMEOUT,
   IMAGE_DOWNLOAD_RETRY_DELAY,
 } from './constants'
 import { sleep } from './utils'
 
-export function isPrivateIP(rawHostname: string): boolean {
-  // URL.hostname 对 IPv6 保留方括号，统一去掉后再判断。
-  let hostname = rawHostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '')
-  // IPv4 映射的 IPv6（::ffff:127.0.0.1 / ::ffff:7f00:1）按 IPv4 处理。
-  const mapped = /^::ffff:(?:(\d+\.\d+\.\d+\.\d+)|([0-9a-f]{1,4}):([0-9a-f]{1,4}))$/.exec(hostname)
-  if (mapped) {
-    hostname = mapped[1] || [parseInt(mapped[2], 16) >> 8, parseInt(mapped[2], 16) & 255, parseInt(mapped[3], 16) >> 8, parseInt(mapped[3], 16) & 255].join('.')
+async function publicAddress(host: string, signal: AbortSignal) {
+  signal.throwIfAborted()
+  const resolution = lookup(host, { all: true, order: 'ipv4first' })
+  const addresses = await Promise.race([
+    resolution,
+    aborted(signal, resolution).then((): never => { throw signal.reason })
+  ])
+  if (!addresses.length || addresses.some(entry => isBlockedAddress(entry.address))) {
+    throw new Error('请使用公网图片 URL。')
   }
-
-  if (/^0\./.test(hostname)) return true // 0.0.0.0/8
-  if (/^127\./.test(hostname)) return true // 127.0.0.0/8
-  if (/^10\./.test(hostname)) return true // 10.0.0.0/8
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return true // 172.16.0.0/12
-  if (/^192\.168\./.test(hostname)) return true // 192.168.0.0/16
-  if (/^169\.254\./.test(hostname)) return true // 169.254.0.0/16 (链路本地)
-  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(hostname)) return true // 100.64.0.0/10 (CGNAT)
-  if (hostname === 'localhost' || hostname.endsWith('.localhost')) return true
-
-  if (hostname === '::' || hostname === '::1') return true // 未指定 / 回环
-  if (/^fe[89ab][0-9a-f]:/.test(hostname)) return true // 链路本地 fe80::/10
-  if (/^f[cd][0-9a-f]{2}:/.test(hostname)) return true // 唯一本地地址 fc00::/7
-
-  return false
+  return addresses[0]!.address
 }
 
-export async function downloadImage(ctx: Context, url: string, maxBytes?: number): Promise<Buffer> {
+async function fetchImage(http: Http, source: string, maxBytes: number) {
+  const signal = AbortSignal.timeout(IMAGE_DOWNLOAD_TIMEOUT)
+  const proxy = http.resolveConfig({}).proxyAgent
+  let url = new URL(source)
+  for (let hop = 0; hop <= 5; hop++) {
+    if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('请使用公网图片 URL。')
+    const host = url.hostname.replace(/^\[|\]$/g, '')
+    const address = await publicAddress(host, signal)
+    // 连接已核验的地址，同时保留域名供虚拟主机和证书校验使用。
+    const target = new URL(url)
+    target.hostname = isIP(address) === 6 ? '[' + address + ']' : address
+    const tls = isIP(host) ? {} : { servername: host }
+    const dispatcher = proxy ? new http.undici.ProxyAgent({ uri: proxy, requestTls: tls })
+      : new http.undici.Agent({ connect: tls })
+    try {
+      const response = await dispatcher.request({
+        origin: target.origin, path: target.pathname + target.search, method: 'GET',
+        headers: { host: url.host, accept: 'image/*' }, signal
+      })
+      const location = response.headers['location']
+      if ([301, 302, 303, 307, 308].includes(response.statusCode) && typeof location === 'string') {
+        url = new URL(location, url)
+        continue
+      }
+      if (response.statusCode < 200 || response.statusCode >= 300) throw Object.assign(new Error('获取图片失败，HTTP ' + response.statusCode), { status: response.statusCode })
+      const chunks: Buffer[] = []
+      let size = 0
+      for await (const chunk of response.body) {
+        size += chunk.length
+        if (size > maxBytes) throw new Error(`Downloaded image size exceeds maximum limit of ${maxBytes} bytes`)
+        chunks.push(chunk)
+      }
+      if (!size) throw new Error('图片内容为空。')
+      return Buffer.concat(chunks)
+    } finally { await dispatcher.destroy() }
+  }
+  throw new Error('图片链接重定向次数过多。')
+}
+
+export function isPrivateIP(rawHostname: string): boolean {
+  // URL.hostname 对 IPv6 保留方括号，统一去掉后再判断。
+  const hostname = rawHostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '')
+  return hostname === 'localhost' || hostname.endsWith('.localhost') || (isIP(hostname) !== 0 && isBlockedAddress(hostname))
+}
+
+export async function downloadImage(ctx: Context, url: string, maxBytes = MAX_IMAGE_BYTES): Promise<Buffer> {
   if (url.startsWith('data:')) {
     const match = /^data:([^;]+);base64,(.*)$/.exec(url)
     if (!match) {
       throw new Error('Invalid data URL format')
     }
+    if (match[2].length > 4 * Math.ceil(maxBytes / 3)) {
+      throw new Error(`Data URL size exceeds maximum limit of ${maxBytes} bytes`)
+    }
     const buffer = Buffer.from(match[2], 'base64')
-    if (maxBytes && buffer.length > maxBytes) {
+    if (buffer.length > maxBytes) {
       throw new Error(`Data URL size exceeds maximum limit of ${maxBytes} bytes`)
     }
     return buffer
@@ -61,24 +103,17 @@ export async function downloadImage(ctx: Context, url: string, maxBytes?: number
     throw new Error('Access to private IP addresses is not allowed')
   }
 
+  const http = ctx.get('http')
+  if (!http) throw new Error('下载外部图片需要启用 HTTP 服务')
   let lastError: Error | null = null
   for (let i = 0; i < IMAGE_DOWNLOAD_MAX_RETRIES; i++) {
     try {
-      const data = await ctx.http.get<ArrayBuffer>(url, {
-        responseType: 'arraybuffer',
-        timeout: IMAGE_DOWNLOAD_TIMEOUT,
-        maxContentLength: maxBytes,
-      } as any)
-      const buffer = Buffer.from(data)
-      if (maxBytes && buffer.length > maxBytes) {
-        throw new Error(`Downloaded image size exceeds maximum limit of ${maxBytes} bytes`)
-      }
-      return buffer
+      return await fetchImage(http, url, maxBytes)
     } catch (err) {
       lastError = err as Error
       // 4xx 与超出大小限制都是确定性失败，重试无意义。
-      const status = (err as any)?.response?.status
-      if ((status >= 400 && status < 500) || /exceeds maximum/.test(lastError.message)) break
+      const status = (err as { status?: number })?.status
+      if ((status >= 400 && status < 500) || /exceeds maximum|公网图片 URL/.test(lastError.message)) break
       if (i < IMAGE_DOWNLOAD_MAX_RETRIES - 1) await sleep(IMAGE_DOWNLOAD_RETRY_DELAY)
     }
   }

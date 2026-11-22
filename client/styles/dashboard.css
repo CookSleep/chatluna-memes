@@ -49,6 +49,9 @@
 }
 
 html.dark .cm-theme {
+  --cm-text: var(--foreground, #ececf1);
+  --cm-text-2: var(--muted-foreground, #b7b7bf);
+  --cm-text-3: #94949d;
   --cm-surface: var(--bg2, #252529);
   --cm-surface-2: #2a2a2f;
   --cm-sunken: var(--bg1, #1e1e20);
@@ -83,7 +86,11 @@ html.dark .cm-theme {
 .cm-theme .el-scrollbar__thumb:hover { background-color: var(--cm-scroll-thumb-hover); }
 
 /* ---------- 布局 ---------- */
-.layout-main.cm-page {
+.cm-webui-root { height: 100%; min-height: 0; }
+.cm-page-header { padding: 12px 24px; border-bottom: 1px solid var(--cm-border); }
+.cm-page {
+  height: 100%;
+  position: relative;
   background: var(--cm-bg);
   display: flex;
   flex-direction: column;

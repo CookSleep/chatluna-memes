@@ -1,14 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
+import { pathToFileURL } from 'node:url'
 import path from 'path'
 import { ChatLunaMemesService, hashImageBuffer } from '../src/service'
-
-// Koishi 的 CJS loader 在 Vitest 的 ESM 转换中不兼容；使用生产入口。
-vi.mock('koishi', async () => {
-  const { createRequire } = await import('node:module')
-  return createRequire(import.meta.url)('koishi')
-})
 
 const roots: string[] = []
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true }))) })
@@ -54,7 +49,7 @@ async function fixture() {
   }
   const service = Object.create(ChatLunaMemesService.prototype) as ChatLunaMemesService
   Object.assign(service, {
-    ctx: { baseDir, database, emit: vi.fn(), logger: () => ({ warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) },
+    ctx: { baseUrl: pathToFileURL(baseDir + '/').href, database, emit: vi.fn(), logger: () => ({ warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) },
     config: { similarityThreshold: 0.9 },
     getImageFingerprints: async (buffer: Buffer) => ({ hash: hashImageBuffer(buffer), perceptual_hash: '' }),
     backfillStagedFingerprints: async () => {},

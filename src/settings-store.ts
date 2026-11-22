@@ -1,4 +1,5 @@
-import type { Context } from 'koishi'
+import { resolveFromBaseUrl } from '@chatluna/utils'
+import type { Context } from 'cordis'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
@@ -6,6 +7,12 @@ import { randomUUID } from 'crypto'
 import { withStorageLock } from './storage'
 import { migrateLegacySettings } from './migration'
 import { applySettingsPatch, diffFromDefaults, resolveSettings, type Settings, type SettingsPatchResult } from './settings'
+
+declare module 'cordis' {
+  interface Events {
+    'chatluna-memes/settings-updated'(previous: Settings, next: Settings): void
+  }
+}
 
 export const SETTINGS_UPDATED = 'chatluna-memes/settings-updated'
 
@@ -18,7 +25,7 @@ export class SettingsStore {
   readonly filename: string
 
   constructor(private ctx: Context, private migrateLegacy = true) {
-    this.filename = path.resolve(ctx.baseDir, 'data/chatluna-memes/.settings.json')
+    this.filename = path.resolve(resolveFromBaseUrl(ctx.baseUrl, 'data/chatluna-memes/.settings.json'))
     this.value = this.load()
   }
 
@@ -31,7 +38,7 @@ export class SettingsStore {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
       // 只在第一次启动（数据目录还不存在）时迁移，之后删掉设置文件就是恢复默认。
       const firstRun = !existsSync(path.dirname(this.filename))
-      const migrated = firstRun && this.migrateLegacy ? migrateLegacySettings(this.ctx.baseDir, (this.ctx as any).loader?.config?.plugins) : null
+      const migrated = firstRun && this.migrateLegacy ? migrateLegacySettings(path.resolve(resolveFromBaseUrl(this.ctx.baseUrl, '.'))) : null
       const settings = migrated ?? resolveSettings({})
       try {
         mkdirSync(path.dirname(this.filename), { recursive: true })
@@ -65,7 +72,7 @@ export class SettingsStore {
       }
       const previous = { ...this.value }
       Object.assign(this.value, result.settings)
-      ;(this.ctx as any).emit(SETTINGS_UPDATED, previous, this.value)
+      this.ctx.emit(SETTINGS_UPDATED, previous, this.value)
       return { ok: true, settings: { ...this.value } }
     })
   }

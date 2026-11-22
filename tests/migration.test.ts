@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
+import { pathToFileURL } from 'node:url'
 import path from 'path'
 import { migrateLegacyData, migrateLegacySettings } from '../src/migration'
 import { DEFAULT_SETTINGS } from '../src/settings'
@@ -34,7 +35,7 @@ function memoryDatabase(tables: Record<string, any[]>) {
 }
 
 function context(baseDir: string, database: ReturnType<typeof memoryDatabase>) {
-  return { baseDir, database, logger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) } as any
+  return { baseUrl: pathToFileURL(baseDir + '/').href, database, logger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) } as any
 }
 
 describe('migrateLegacySettings', () => {
@@ -161,7 +162,8 @@ describe('SettingsStore', () => {
   async function storeWith(migrate: boolean) {
     const baseDir = await tempDir()
     const loader = { config: { plugins: { 'memesluna:abc': { autoCollect: true, backendPath: '/emoji' } } } }
-    const ctx = { ...context(baseDir, memoryDatabase({})), loader }
+    await fs.writeFile(path.join(baseDir, 'koishi.yml'), JSON.stringify(loader.config))
+    const ctx = context(baseDir, memoryDatabase({}))
     return new SettingsStore(ctx, migrate).value
   }
 

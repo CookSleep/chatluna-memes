@@ -1,5 +1,5 @@
+import type {} from '@chatluna/ui-client/client'
 import type { Settings, SettingsPatchResult } from './settings'
-import type {} from '@koishijs/plugin-console'
 
 export type ConsoleDate = string | Date
 
@@ -96,8 +96,6 @@ export interface ConsoleSettingsPayload {
 
 export interface ConsoleState {
   backendPath: string
-  /** 没有启用 auth 插件时管理页会提示风险。 */
-  authEnabled: boolean
   endpoints: ConsoleEndpointInfo[]
   collections: ConsoleCollectionInfo[]
   stagedImages: ConsoleStagedImageInfo[]
@@ -193,6 +191,8 @@ export interface ChatLunaMemesConsoleEvents {
   'chatluna-memes/cancelAnnotations'(): Promise<boolean>
 }
 
-declare module '@koishijs/plugin-console' {
-  interface Events extends ChatLunaMemesConsoleEvents {}
+declare module '@chatluna/ui-client/client' {
+  interface States {
+    'memes.pagePath': string
+  }
 }

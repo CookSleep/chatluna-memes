@@ -4,6 +4,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "strict": true,
+    "jsx": "react-jsx",
     "noEmit": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -12,12 +13,10 @@
       "dom",
       "dom.iterable"
     ],
-    "types": [],
-    "baseUrl": ".",
+    "types": ["node"],
     "paths": {
-      "@koishijs/client": [
-        "./koishi-client.d.ts"
-      ]
+      "react": ["../node_modules/@types/react/index.d.ts"],
+      "react/*": ["../node_modules/@types/react/*"]
     }
   },
   "include": [

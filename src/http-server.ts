@@ -1,6 +1,11 @@
 import fs from 'fs/promises'
 import path from 'path'
-import { Context } from 'koishi'
+import type { Context } from 'cordis'
+import type { Response } from '@cordisjs/plugin-server'
+import type {} from '@chatluna/ui-server'
+import { tmpdir } from 'node:os'
+import { Readable } from 'node:stream'
+import type { IncomingMessage } from 'node:http'
 import type { Settings } from './settings'
 import { renderInjectPrompt } from './chatluna-inject'
 import { findByQuery } from './search'
@@ -9,9 +14,9 @@ import {
   type ChatLunaMemesService,
 } from './service'
 import { toTrimmedString } from './utils'
-import { getLocalBaseUrl, toAbsoluteBaseUrl } from './urls'
+import { getLocalBaseUrl, managementPageUrl, toAbsoluteBaseUrl } from './urls'
 import formidable from 'formidable'
-import { adminHttpGuard } from './admin-auth'
+import { authorizeAdmin } from './admin-auth'
 import { MAX_IMAGE_BYTES, MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_BYTES } from './constants'
 
 async function applyDynamicForward(
@@ -20,7 +25,6 @@ async function applyDynamicForward(
   service: ChatLunaMemesService,
   routeName: string,
   _query: Record<string, unknown>,
-  requestOrigin?: string,
 ) {
   const endpoint = await service.getEndpointByName(routeName)
   const isCollection = await service.collectionExists(routeName)
@@ -34,7 +38,6 @@ async function applyDynamicForward(
       return {
         status: 500,
         body: { error: 'Configuration URL missing' },
-        contentType: 'application/json',
       }
     }
 
@@ -43,7 +46,7 @@ async function applyDynamicForward(
 
   const query = typeof _query?.q === 'string' ? _query.q.trim() : ''
   if (query && isCollection) {
-    const queryResult = await findByQuery(ctx, config, service, query, requestOrigin, routeName)
+    const queryResult = await findByQuery(ctx, config, service, query, routeName)
     if (queryResult) return queryResult
   }
 
@@ -56,96 +59,64 @@ async function applyDynamicForward(
     return { redirectTo: resource.value }
   }
 
-  const localUrl = `${getLocalBaseUrl(ctx, config, requestOrigin)}${config.backendPath}/api/collections/${encodeURIComponent(routeName)}/images/${encodeURIComponent(resource.filename || '')}`
+  const localUrl = `${getLocalBaseUrl(ctx, config)}${config.backendPath}/api/collections/${encodeURIComponent(routeName)}/images/${encodeURIComponent(resource.filename || '')}`
   return { redirectTo: localUrl }
 }
 
-function setKoaResponse(koa: any, result: any) {
-  if (result.redirectTo) {
-    koa.redirect(result.redirectTo)
-    return
-  }
-
-  if (result.notFound) {
-    koa.status = 404
-    koa.body = { error: 'Not Found' }
-    return
-  }
-
-  koa.status = result.status ?? 200
-  if (result.contentType) {
-    koa.set('Content-Type', result.contentType)
-  }
-  koa.body = result.body
+function redirect(res: Response, url: string) {
+  res.status = 302
+  res.headers.set('location', url)
+  res.text('')
 }
 
-/** 图片响应统一禁止 MIME 嗅探，SVG 额外沙箱化，避免在 Console 同源下执行脚本。 */
-function sendImage(koa: any, image: { buffer: Buffer; mime: string }) {
-  koa.status = 200
-  koa.set('Content-Type', image.mime)
-  koa.set('X-Content-Type-Options', 'nosniff')
-  if (image.mime === 'image/svg+xml') koa.set('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'")
-  koa.body = image.buffer
-}
-
-/** Console 页面地址；console 是可选依赖，用 ctx.get 避免未声明注入的警告。 */
-function getConsolePageUrl(ctx: Context): string {
-  const uiPath: string = (ctx.get('console') as any)?.config?.uiPath ?? ''
-  return `${uiPath.replace(/\/+$/, '')}/chatluna-memes`
+function sendImage(res: Response, image: { buffer: Buffer; mime: string }) {
+  res.headers.set('Content-Type', image.mime)
+  res.headers.set('X-Content-Type-Options', 'nosniff')
+  if (image.mime === 'image/svg+xml') res.headers.set('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'")
+  res.body = new Uint8Array(image.buffer)
 }
 
 export function applyServer(ctx: Context, config: Settings, service: ChatLunaMemesService) {
-  if (!ctx.server) return
-
+  const server = ctx.server
   const basePath = config.backendPath
+  ctx.inject(['chatluna_webui'], (uiCtx) => { uiCtx.chatluna_webui.exclude(basePath) })
 
-  const guard = adminHttpGuard(ctx)
-  const server = Object.fromEntries(['get', 'post'].map((method) => [method,
-    (route: string, handler: (koa: any, next: () => Promise<void>) => Promise<void>) => {
-      if (!route.startsWith(`${basePath}/api/admin/`)) {
-        return (ctx.server as any)[method](route, handler)
-      }
-      // 管理路由只做鉴权；请求体（multipart）由各自处理器在鉴权后解析。
-      return (ctx.server as any)[method](route, guard, async (koa: any, next: () => Promise<void>) => {
-        await service.ready
-        await handler(koa, next)
-      })
-    },
-  ])) as Record<'get' | 'post', (route: string, handler: (koa: any, next: () => Promise<void>) => Promise<void>) => unknown>
-
-  server.get(`${basePath}/api/homepage-data`, async (koa) => {
+  server.get(`${basePath}/api/homepage-data`, async (_req, res) => {
+    await service.ready
     const inventory = await service.buildRouteInventory(`${toAbsoluteBaseUrl(ctx, config)}${basePath}`)
-    koa.body = { llmPrompt: renderInjectPrompt(config, inventory, toAbsoluteBaseUrl(ctx, config)), routeInventory: inventory }
+    res.json({ llmPrompt: renderInjectPrompt(config, inventory, toAbsoluteBaseUrl(ctx, config)), routeInventory: inventory })
   })
 
-  server.get(`${basePath}/api/admin/staged-images/:id`, async (koa) => {
-    const id = toTrimmedString(koa.params.id)
+  server.get(`${basePath}/api/admin/staged-images/:id`, async (req, res) => {
+    if (!authorizeAdmin(ctx, req, res)) return
+    await service.ready
+    const id = toTrimmedString(req.params.id)
     const image = await service.getStagedImageBuffer(id)
     if (!image) {
-      koa.status = 404
-      koa.body = { error: 'Staged image not found' }
+      res.status = 404
+      res.json({ error: 'Staged image not found' })
       return
     }
 
-    sendImage(koa, image)
+    sendImage(res, image)
   })
 
-  server.post(`${basePath}/api/admin/collections/:name/images`, async (koa) => {
-    const collectionName = toTrimmedString(koa.params.name)
+  server.post(`${basePath}/api/admin/collections/:name/images`, async (req, res) => {
+    if (!authorizeAdmin(ctx, req, res)) return
+    await service.ready
+    const collectionName = toTrimmedString(req.params.name)
     if (!collectionName) {
-      koa.status = 400
-      koa.body = { error: 'Collection name is required' }
+      res.status = 400
+      res.json({ error: 'Collection name is required' })
       return
     }
 
-    if (!(koa.get('content-type') || '').toLowerCase().startsWith('multipart/form-data;')) {
-      koa.status = 415
-      koa.body = { error: 'multipart/form-data is required' }
+    if (!(req.headers.get('content-type') || '').toLowerCase().startsWith('multipart/form-data;')) {
+      res.status = 415
+      res.json({ error: 'multipart/form-data is required' })
       return
     }
-    const storageRoot = path.resolve(ctx.baseDir, 'data/chatluna-memes')
-    await fs.mkdir(storageRoot, { recursive: true })
-    const tempDir = await fs.mkdtemp(path.join(storageRoot, '.temp_upload-'))
+    const tempDir = await fs.mkdtemp(path.join(tmpdir(), 'chatluna-memes-upload-'))
     const form = formidable({
       uploadDir: tempDir, keepExtensions: true, multiples: true,
       maxFileSize: MAX_IMAGE_BYTES, maxFiles: MAX_UPLOAD_FILES,
@@ -155,9 +126,11 @@ export function applyServer(ctx: Context, config: Settings, service: ChatLunaMem
     const failed: Array<{ filename: string; error: string }> = []
     const rowsToAnnotate: any[] = []
     try {
-      const files = await new Promise<formidable.Files>((resolve, reject) => {
-        form.parse(koa.req, (error, _fields, files) => error ? reject(error) : resolve(files))
-      })
+      if (!req.body) throw new Error('上传内容为空')
+      // Cordis 已把原始请求转成 Web 流；从这份流读取，避免丢失已缓存的首块。
+      const input = Object.assign(Readable.fromWeb(req.body), { headers: req._req.headers })
+      const [, files] = await form.parse(input as IncomingMessage)
+
       const field = files.images || files.file || files.files
       const fileList = Array.isArray(field) ? field : field ? [field] : []
       if (!fileList.length) throw new Error('No images provided')
@@ -172,87 +145,101 @@ export function applyServer(ctx: Context, config: Settings, service: ChatLunaMem
         }
       }
       if (service.autoAnnotate && rowsToAnnotate.length) {
-        void service.queueAnnotation(rowsToAnnotate).catch((error) => ctx.logger('chatluna-memes').warn(error))
+        void service.queueAnnotation(rowsToAnnotate).catch((error) => ctx.logger.warn(error))
       }
-      koa.status = uploaded.length ? 200 : 400
-      koa.body = { ok: failed.length === 0, uploaded, failed }
+      res.status = uploaded.length ? 200 : 400
+      res.json({ ok: failed.length === 0, uploaded, failed })
     } catch (error) {
-      koa.status = 400
-      koa.body = { error: (error as Error).message || 'Failed to parse upload stream' }
+      res.status = 400
+      res.json({ error: (error as Error).message || 'Failed to parse upload stream' })
     } finally {
       // 包括解析失败、单张失败和剩余未处理文件，不清理其他请求的目录。
       await fs.rm(tempDir, { recursive: true, force: true })
     }
   })
 
-  server.get(`${basePath}/api/collections/:name/images/:filename`, async (koa) => {
-    const collectionName = toTrimmedString(koa.params.name)
-    const filename = toTrimmedString(koa.params.filename)
+  server.get(`${basePath}/api/collections/:name/images/:filename`, async (req, res) => {
+    await service.ready
+    const collectionName = toTrimmedString(req.params.name)
+    const filename = toTrimmedString(req.params.filename)
 
     const image = await service.getLocalImageBuffer(collectionName, filename)
     if (!image) {
-      koa.status = 404
-      koa.body = { error: 'Image not found' }
+      res.status = 404
+      res.json({ error: 'Image not found' })
       return
     }
 
-    sendImage(koa, image)
+    sendImage(res, image)
   })
 
   // 不带结尾斜杠才能同时匹配 /prefix 和 /prefix/，提示词里给模型的搜索地址是前者。
-  server.get(basePath, async (koa, next) => {
-    const query = typeof koa.request.query?.q === 'string' ? koa.request.query.q.trim() : ''
+  server.get(basePath, async (req, res) => {
+    await service.ready
+    const query = req.query.get('q')?.trim()
     if (query) {
-      const result = await findByQuery(ctx, config, service, query, koa.request.origin)
-      setKoaResponse(koa, result || { notFound: true })
+      const result = await findByQuery(ctx, config, service, query)
+      if (result?.redirectTo) redirect(res, result.redirectTo)
+      else { res.status = 404; res.json({ error: 'Not Found' }) }
       return
     }
 
-    // 默认前缀和 Console 页面路径相同，这时交给 Console，否则会跳转到自己。
-    const consolePage = getConsolePageUrl(ctx)
-    if (koa.path.replace(/\/+$/, '') === consolePage) return next()
-    koa.redirect(consolePage)
+    const ui = ctx.get('chatluna_webui')
+    const page = managementPageUrl(ctx)
+    if (ui && basePath === page) {
+      // 此前缀已从外壳的兜底路由排除；同址无查询时直接交付原生 WebUI 首页。
+      res.headers.set('cache-control', 'no-store')
+      res.headers.set('content-type', 'text/html; charset=utf-8')
+      res.body = await ui.transformHtml(await fs.readFile(path.join(ui.root, 'index.html'), 'utf8'))
+      return
+    }
+    redirect(res, page)
   })
 
-  server.get(`${basePath}/:name`, async (koa) => {
-    const routeName = koa.params.name as string
+  server.get(`${basePath}/:name`, async (req, res) => {
+    await service.ready
+    const routeName = req.params.name
 
     if (isReservedPath(routeName)) {
-      koa.status = 404
-      koa.body = { error: 'Not Found' }
+      res.status = 404
+      res.json({ error: 'Not Found' })
       return
     }
 
-    const query = koa.request.query as Record<string, unknown>
+    const query = Object.fromEntries(req.query)
     const result = await applyDynamicForward(
       ctx,
       config,
       service,
       routeName,
       query,
-      koa.request.origin,
     )
 
-    setKoaResponse(koa, result)
+    if ('redirectTo' in result) redirect(res, result.redirectTo)
+    else {
+      res.status = result.status ?? 404
+      res.json(result.body ?? { error: 'Not Found' })
+    }
   })
 
-  server.get(`${basePath}/:name/:filename`, async (koa) => {
-    const collectionName = toTrimmedString(koa.params.name)
-    const filename = toTrimmedString(koa.params.filename)
+  server.get(`${basePath}/:name/:filename`, async (req, res) => {
+    await service.ready
+    const collectionName = toTrimmedString(req.params.name)
+    const filename = toTrimmedString(req.params.filename)
 
     if (isReservedPath(collectionName)) {
-      koa.status = 404
-      koa.body = { error: 'Not Found' }
+      res.status = 404
+      res.json({ error: 'Not Found' })
       return
     }
 
     const image = await service.getLocalImageBuffer(collectionName, filename)
     if (!image) {
-      koa.status = 404
-      koa.body = { error: 'Image not found' }
+      res.status = 404
+      res.json({ error: 'Image not found' })
       return
     }
 
-    sendImage(koa, image)
+    sendImage(res, image)
   })
 }

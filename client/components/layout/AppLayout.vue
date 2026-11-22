@@ -1,8 +1,8 @@
 <template>
-  <k-layout main="cm-page" class="cm-theme chatluna-memes-app-layout">
-    <template #header>
+  <section class="cm-page cm-theme chatluna-memes-app-layout">
+    <header class="cm-page-header">
       <AppHeader />
-    </template>
+    </header>
 
     <div class="cm-progress" :class="{ 'is-active': loading && initialized }"></div>
     <el-scrollbar class="cm-scroll">
@@ -20,7 +20,7 @@
     </el-scrollbar>
     <Toast />
     <AppDialog />
-  </k-layout>
+  </section>
 </template>
 
 <script lang="ts">

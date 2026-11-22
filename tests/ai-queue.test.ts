@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
+import { pathToFileURL } from 'node:url'
 import { AIUsageTracker } from '../src/aiUsageTracker'
 import { AnnotationScheduler } from '../src/annotation-scheduler'
 import { AnnotationQueue } from '../src/annotation-queue'
@@ -12,7 +13,7 @@ afterEach(async () => { vi.useRealTimers(); await Promise.all(roots.splice(0).ma
 async function tracker(limit: number) {
   const baseDir = await fs.mkdtemp(path.join(os.tmpdir(), 'chatluna-memes-ai-'))
   roots.push(baseDir)
-  const ctx = { baseDir, logger: () => ({ warn: vi.fn() }) } as any
+  const ctx = { baseDir, baseUrl: pathToFileURL(baseDir + '/').href, logger: { warn: vi.fn() } } as any
   return { instance: new AIUsageTracker(ctx, () => limit), ctx }
 }
 

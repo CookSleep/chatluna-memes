@@ -1,6 +1,3 @@
-import { existsSync } from 'fs'
-import path from 'path'
-import { Context } from 'koishi'
 import type { Settings } from './settings'
 import {
   type ChatLunaMemesService,
@@ -9,30 +6,40 @@ import {
   parseJsonStringArray,
   toTrimmedString,
 } from './utils'
-import { toAbsoluteBaseUrl } from './urls'
-import { ADMIN_AUTHORITY, isAuthEnabled, requireConsoleAdmin } from './admin-auth'
-import type { ImageMetadataPayload, CollectionPageQuery, ConsoleModelOption } from './console-rpc'
+import { managementPageUrl, toAbsoluteBaseUrl } from './urls'
+import type { Context } from 'cordis'
+import type {} from '@chatluna/ui-server'
+import type {} from '@chatluna/ai-runtime'
+import { formatModelAddress } from '@chatluna/utils/model-address'
+import type { ImageMetadataPayload, CollectionPageQuery, ConsoleModelOption, ChatLunaMemesConsoleEvents } from './console-rpc'
+import { authorizeAdmin } from './admin-auth'
 import type { SettingsStore } from './settings-store'
 
 export function applyConsole(ctx: Context, config: Settings, store: SettingsStore, service: ChatLunaMemesService) {
-  if (!ctx.console) {
-    return
+  const handlers = new Map<string, (args: unknown[]) => unknown>()
+  const addListener = <K extends keyof ChatLunaMemesConsoleEvents>(
+    event: K, handler: (...args: Parameters<ChatLunaMemesConsoleEvents[K]>) => unknown,
+  ) => {
+    handlers.set(event, (args) => handler(...args as Parameters<ChatLunaMemesConsoleEvents[K]>))
   }
-
-  const consoleService = ctx.console as any
-
-  const packageBase = path.resolve(__dirname, '..')
-  const installedBase = path.resolve(ctx.baseDir, 'node_modules', 'koishi-plugin-chatluna-memes')
-  const consoleBase = existsSync(installedBase) ? installedBase : packageBase
-  const devPath = path.resolve(consoleBase, 'client/index.ts')
-  const prodPath = path.resolve(consoleBase, 'dist')
-
-  const addListener = (event: string, handler: (...args: any[]) => any) => {
-    consoleService.addListener(event, async function (this: any, ...args: any[]) {
-      await requireConsoleAdmin(ctx, this)
-      return handler(...args)
-    }, { authority: ADMIN_AUTHORITY })
-  }
+  ctx.server.post('/api/memes/manage', async (req, res) => {
+    if (!authorizeAdmin(ctx, req, res)) return
+    const input = await req.json().catch(() => null)
+    const handler = handlers.get(input?.event)
+    if (!handler || !Array.isArray(input.args)) {
+      res.status = 400
+      res.json({ message: '无效的表情包管理操作' })
+      return
+    }
+    try {
+      const result = await handler(input.args)
+      if (result === undefined) res.status = 204
+      else res.json(result)
+    } catch (error) {
+      res.status = 400
+      res.json({ message: error instanceof Error ? error.message : '表情包管理操作失败' })
+    }
+  })
 
   const withReady = <T extends unknown[], R>(handler: (...args: T) => Promise<R> | R) => {
     return async (...args: T): Promise<R> => {
@@ -41,10 +48,8 @@ export function applyConsole(ctx: Context, config: Settings, store: SettingsStor
     }
   }
 
-  consoleService.addEntry({
-    dev: devPath,
-    prod: prodPath,
-  })
+  ctx.chatluna_webui.state('memes.pagePath', { get: () => managementPageUrl(ctx) })
+  ctx.chatluna_webui.addEntry({ baseUrl: import.meta.url, source: '../client/dev.js', bundle: '../dist/client.js' })
 
   addListener(
     'chatluna-memes/getState',
@@ -55,7 +60,6 @@ export function applyConsole(ctx: Context, config: Settings, store: SettingsStor
       const stagedImages = await service.getStagedImages()
       return {
         backendPath: config.backendPath,
-        authEnabled: isAuthEnabled(ctx),
         endpoints,
         collections: detailedCollections.filter(Boolean),
         stagedImages,
@@ -77,12 +81,12 @@ export function applyConsole(ctx: Context, config: Settings, store: SettingsStor
     })
   )
 
-  addListener('chatluna-memes/getSettings', () => ({
+  addListener('chatluna-memes/getSettings', async () => ({
     settings: { ...config },
-    models: listChatModels(ctx),
-    chatlunaAvailable: !!ctx.get('chatluna'),
+    models: await listChatModels(ctx),
+    chatlunaAvailable: !!ctx.get('ai'),
     annotatorReady: !!service.annotator,
-    serverSelfUrl: ((ctx.get('server') as any)?.selfUrl || '').replace(/\/+$/, ''),
+    serverSelfUrl: (ctx.chatluna_webui.config.selfUrl || ctx.server.baseUrl).replace(/\/+$/, ''),
   }))
 
   addListener('chatluna-memes/updateSettings', (patch: unknown) => store.update(patch))
@@ -265,17 +269,19 @@ export function applyConsole(ctx: Context, config: Settings, store: SettingsStor
 
 }
 
-/** ChatLuna 已加载的对话模型；chatluna 是可选依赖，未安装时返回空列表。 */
-function listChatModels(ctx: Context): ConsoleModelOption[] {
-  try {
-    // 1 即 ModelType.llm，这里不直接引入 chatluna 的运行时代码。
-    const models = (ctx.get('chatluna') as any)?.platform?.listAllModels(1)?.value || []
-    return models.map((model: any) => ({
-      name: model.toModelName?.() || `${model.platform}/${model.name}`,
-      vision: Array.isArray(model.capabilities) && model.capabilities.includes('image_input'),
-    }))
-  } catch (error) {
-    ctx.logger('chatluna-memes').warn('读取 ChatLuna 模型列表失败:', error)
-    return []
-  }
+async function listChatModels(ctx: Context): Promise<ConsoleModelOption[]> {
+  const ai = ctx.get('ai')
+  if (!ai) return []
+  const models = await Promise.all(ai.providers().map(async (provider) => {
+    try {
+      return (await ai.models(provider.id, 'chat')).map((model) => ({
+        name: formatModelAddress({ provider: provider.id, model: model.id }),
+        vision: model.inputModalities?.includes('image') ?? false,
+      }))
+    } catch (error) {
+      ctx.logger.warn(`读取 ${provider.id} 的模型列表失败：`, error)
+      return []
+    }
+  }))
+  return models.flat()
 }

@@ -1,4 +1,4 @@
-import type { Context } from 'koishi'
+import type { Context } from 'cordis'
 import type { Settings } from './settings'
 import type { ChatLunaMemesService } from './service'
 import {
@@ -276,7 +276,6 @@ export async function findByQuery(
   config: Settings,
   service: ChatLunaMemesService,
   query: string,
-  requestOrigin?: string,
   collectionName?: string,
 ): Promise<{ redirectTo: string } | null> {
   const rawQuery = query.trim()
@@ -312,6 +311,6 @@ export async function findByQuery(
   if (resource.type === 'external') return { redirectTo: resource.value }
 
   const collection = pick.image.collection || collectionName || ''
-  const localUrl = `${getLocalBaseUrl(ctx, config, requestOrigin)}${config.backendPath}/api/collections/${encodeURIComponent(collection)}/images/${encodeURIComponent(resource.filename || '')}`
+  const localUrl = `${getLocalBaseUrl(ctx, config)}${config.backendPath}/api/collections/${encodeURIComponent(collection)}/images/${encodeURIComponent(resource.filename || '')}`
   return { redirectTo: localUrl }
 }

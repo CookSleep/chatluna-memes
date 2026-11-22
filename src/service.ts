@@ -1,7 +1,11 @@
 import { createHash, randomUUID } from 'crypto'
 import fs from 'fs/promises'
 import path from 'path'
-import { Context, Service, Eval } from 'koishi'
+import { Context, Service } from 'cordis'
+import { Eval, type Tables } from '@cordisjs/plugin-database'
+import { createRequire } from 'node:module'
+import { resolveFromBaseUrl } from '@chatluna/utils'
+import { downloadImage } from './download'
 import type { Settings } from './settings'
 import type { AIAnnotator } from './aiAnnotator'
 import {
@@ -55,6 +59,8 @@ const IMAGE_EXTENSIONS = new Set([
 export function hashImageBuffer(buffer: Buffer): string {
   return createHash('sha256').update(buffer).digest('hex')
 }
+
+const require = createRequire(import.meta.url)
 
 let cachedSharp: any = undefined
 let cachedPhoton: any = undefined
@@ -233,50 +239,32 @@ export interface ChatLunaMemesServiceOptions {
 }
 
 export class ChatLunaMemesService extends Service {
+  [Service.init] = (): Promise<void> => this.ready
+  static inject = ['database']
   declare config: Settings
-  private _readyPromise: Promise<void>
-  private _readyResolve: () => void
-  private _readyReject: (error: unknown) => void
+  readonly ready: Promise<void>
   private _annotator: AIAnnotator | null = null
   private _disposed = false
   /** 批量和手动标注共享生命周期及进度统计。 */
   private _annotationQueue = new AnnotationQueue()
 
   constructor(ctx: Context, options: ChatLunaMemesServiceOptions) {
-    super(ctx, 'chatluna_memes', true)
+    super(ctx, 'chatluna_memes')
     this.config = options.settings
     this.defineDatabase()
-
-    this._readyPromise = new Promise((resolve, reject) => {
-      this._readyResolve = resolve
-      this._readyReject = reject
+    this.ready = withStorageLock(this.getStorageRoot(), async () => {
+      await migrateLegacyData(ctx, this.getStorageRoot(), options.migrateLegacyData)
+      await this.ensureStorage()
     })
-    void this._readyPromise.catch(() => {})
-
-    ctx.on('ready', async () => {
-      try {
-        await withStorageLock(this.getStorageRoot(), async () => {
-          // 迁移失败时不继续启动：同步目录会给已复制的图片另建记录，下次重试时就和原记录冲突了。
-          await migrateLegacyData(ctx, this.getStorageRoot(), options.migrateLegacyData).catch((error) => {
-            ctx.logger('chatluna-memes').error('迁移 memesluna 的数据失败，插件没有启动，排查后重启 Koishi 会重新迁移:', error)
-            throw error
-          })
-          await this.ensureStorage()
-        })
-        this._readyResolve()
-      } catch (error) { this._readyReject(error); throw error }
+    ctx.effect(() => () => {
+      this._disposed = true
+      this._annotationQueue.dispose()
+      this._annotator?.dispose()
     })
-    ctx.on('dispose', () => { this._disposed = true; this._annotationQueue.dispose(); this._annotator?.dispose() })
-  }
-
-  static inject = ['database']
-
-  get ready() {
-    return this._readyPromise
   }
 
   private notifyImagesChanged() {
-    ;(this.ctx as any).emit(CHATLUNA_MEMES_IMAGES_UPDATED)
+    this.ctx.emit(CHATLUNA_MEMES_IMAGES_UPDATED)
   }
 
   setAnnotator(annotator: AIAnnotator): void {
@@ -413,7 +401,7 @@ export class ChatLunaMemesService extends Service {
   }
 
   private getStorageRoot() {
-    return path.resolve(this.ctx.baseDir, 'data/chatluna-memes')
+    return path.resolve(resolveFromBaseUrl(this.ctx.baseUrl, 'data/chatluna-memes'))
   }
 
   private getStagingDir() {
@@ -1011,7 +999,7 @@ export class ChatLunaMemesService extends Service {
     const image = rows[0]
     if (image.type === 'external') {
       try {
-        const buffer = await this.ctx.http.get<ArrayBuffer>(image.value, { responseType: 'arraybuffer' })
+        const buffer = await downloadImage(this.ctx, image.value, MAX_IMAGE_BYTES)
         return { buffer: Buffer.from(buffer), mime: image.mime }
       } catch {
         return null
@@ -1303,7 +1291,7 @@ export class ChatLunaMemesService extends Service {
     })
   }
 
-  async getImageById(id: string) {
+  async getImageById(id: string): Promise<Tables['chatluna_memes_images'] | null> {
     const rows = await this.ctx.database.get('chatluna_memes_images', { id })
     return rows[0] ?? null
   }
@@ -1780,11 +1768,17 @@ export class ChatLunaMemesService extends Service {
   }
 }
 
-declare module 'koishi' {
+declare module 'cordis' {
+  interface Events {
+    'chatluna-memes/images-updated'(): void
+  }
   interface Context {
     chatluna_memes: ChatLunaMemesService
   }
 
+}
+
+declare module '@cordisjs/plugin-database' {
   interface Tables {
     chatluna_memes_endpoints: {
       id: string

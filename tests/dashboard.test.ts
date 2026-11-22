@@ -3,7 +3,8 @@ import { nextTick } from 'vue'
 import { useDashboard } from '../client/composables/useDashboard'
 
 const mocks = vi.hoisted(() => ({ send: vi.fn(), cleanup: [] as Array<() => void> }))
-vi.mock('@koishijs/client', () => ({ send: mocks.send, store: { user: { token: 'session' } } }))
+vi.mock('../client/composables/rpc', () => ({ sendChatLunaMemes: mocks.send }))
+vi.mock('../client/composables/adminFetch', () => ({ adminFetch: vi.fn() }))
 vi.mock('vue', async (importOriginal) => {
   const vue = await importOriginal<typeof import('vue')>()
   return { ...vue, onMounted: () => {}, onUnmounted: (callback: () => void) => mocks.cleanup.push(callback) }

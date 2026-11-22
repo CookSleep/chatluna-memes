@@ -1,7 +1,7 @@
 {
-  "name": "koishi-plugin-chatluna-memes",
+  "name": "chatluna-plugin-memes",
   "description": "为 ChatLuna 提供表情包：管理本地表情包和外部随机图源，注入随机图清单让模型发表情，支持 AI 标注与群聊高频图片收集",
-  "version": "0.1.6",
+  "version": "0.1.0",
   "homepage": "https://github.com/CookSleep/chatluna-memes",
   "repository": {
     "type": "git",
@@ -11,7 +11,7 @@
     "url": "https://github.com/CookSleep/chatluna-memes/issues"
   },
   "keywords": [
-    "koishi",
+    "chatluna-plugin",
     "chatluna",
     "meme",
     "sticker",
@@ -35,53 +35,70 @@
   "files": [
     "lib/**/*.js",
     "lib/**/*.d.ts",
-    "dist"
+    "dist",
+    "client/dev.js"
   ],
   "scripts": {
-    "build": "yakumo build",
+    "build": "tsc -p tsconfig.json --noCheck --emitDeclarationOnly && esbuild src/index.ts --bundle --platform=node --target=node24 --format=esm --packages=external --outfile=lib/index.js && vite build --config client/vite.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p client/tsconfig.json",
-    "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test": "vitest run"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=24"
   },
   "dependencies": {
     "@cf-wasm/photon": "^0.3.6",
-    "@langchain/core": "^0.3.80",
     "formidable": "^3.5.4",
-    "koishi-plugin-chatluna": "^1.3.0-alpha.49"
+    "yaml": "^2.8.1"
   },
   "devDependencies": {
-    "@koishijs/client": "^5.30.11",
-    "@koishijs/plugin-console": "^5.30.11",
-    "@koishijs/plugin-server": "^3.2.7",
-    "@vitest/coverage-v8": "^1.6.1",
-    "koishi": "^4.18.9",
-    "typescript": "^5.0.0",
+    "@types/formidable": "^3.4.6",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@vitejs/plugin-vue": "5.2.4",
+    "@vue/shared": "^3.5.35",
+    "element-plus": "^2.11.0",
+    "esbuild": "^0.25.0",
+    "typescript": "~5.9.3",
+    "vite": "5.4.21",
     "vitest": "^1.6.1",
-    "yakumo": "^1.0.0",
-    "yakumo-esbuild": "^1.0.0",
-    "yakumo-tsc": "^1.0.0"
+    "vue": "^3.5.0"
   },
   "peerDependencies": {
-    "@koishijs/plugin-console": "^5.30.11",
-    "@koishijs/plugin-server": "^3.2.7",
-    "koishi": "^4.18.9",
-    "koishi-plugin-chatluna": "^1.3.0-alpha.49"
+    "@chatluna/ai-runtime": "*",
+    "@chatluna/search": "*",
+    "@chatluna/utils": "*",
+    "@cordisjs/plugin-database": "*",
+    "@satorijs/core": "*",
+    "cordis": "^4.0.0-rc.12",
+    "schemastery": "*"
   },
   "peerDependenciesMeta": {
-    "@koishijs/plugin-console": {
+    "cordis": {
       "optional": true
     },
-    "@koishijs/plugin-server": {
+    "schemastery": {
+      "optional": true
+    },
+    "@chatluna/utils": {
+      "optional": true
+    },
+    "@chatluna/search": {
+      "optional": true
+    },
+    "@chatluna/ai-runtime": {
+      "optional": true
+    },
+    "@cordisjs/plugin-database": {
+      "optional": true
+    },
+    "@satorijs/core": {
       "optional": true
     }
   },
-  "koishi": {
-    "category": "ai",
+  "type": "module",
+  "cordis": {
+    "category": "tool",
     "description": {
       "zh": "为 ChatLuna 提供表情包：管理本地表情包和外部随机图源，注入随机图清单让模型发表情，支持 AI 标注与群聊高频图片收集"
     },
@@ -93,15 +110,15 @@
         "database"
       ],
       "optional": [
+        "http",
+        "koishi",
+        "timer",
+        "prompt",
+        "ai",
         "server",
-        "console",
-        "auth",
-        "chatluna"
+        "chatluna_webui",
+        "chatluna_server"
       ]
-    },
-    "locales": [
-      "zh-CN"
-    ],
-    "icon": "mdi:emoticon-outline"
+    }
   }
 }

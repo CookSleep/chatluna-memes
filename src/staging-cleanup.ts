@@ -1,4 +1,4 @@
-import { Context } from 'koishi'
+import type { Context } from 'cordis'
 import type { Settings } from './settings'
 
 export function applyStagingCleanup(ctx: Context, config: Settings) {
@@ -20,6 +20,6 @@ export function applyStagingCleanup(ctx: Context, config: Settings) {
 
   // 启动时先清理一次，否则频繁重启会让首次清理一直被推迟。
   void cleanup()
-  ctx.setInterval(cleanup, Math.max(60 * 60 * 1000, retentionDays * 24 * 60 * 60 * 1000 / 4))
+  ctx.interval(cleanup, Math.max(60 * 60 * 1000, retentionDays * 24 * 60 * 60 * 1000 / 4))
   ctx.logger('chatluna-memes').info(`Staging auto-clean enabled: retention ${retentionDays} days`)
 }

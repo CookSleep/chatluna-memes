@@ -5,14 +5,13 @@
 # ChatLuna Memes
 
 [![License](https://img.shields.io/badge/license-MIT-10b981?style=flat-square)](LICENSE)
-[![Koishi](https://img.shields.io/badge/Koishi-4.18-5546a3?style=flat-square)](https://koishi.chat/)
-[![ChatLuna](https://img.shields.io/badge/ChatLuna-1.3-8b5cf6?style=flat-square)](https://github.com/ChatLunaLab/chatluna)
+[![ChatLuna](https://img.shields.io/badge/ChatLuna-V2-8b5cf6?style=flat-square)](https://github.com/ChatLunaLab/chatluna)
 
-**让 ChatLuna 会发表情包的 Koishi 插件**
+**让 ChatLuna 会发表情包的 V2 插件**
 
 把本地表情包和外部随机图 API 整理成一组随机图地址，注入 ChatLuna 的预设，模型就能按语境挑一张发出去。<br>
 用 AI 为每张图生成标签和别名，模型可以按关键词找图；群里反复出现的图会被收进待审区，确认后一键归档。<br>
-所有管理和设置都在 Koishi 控制台里完成，保存后立即生效。
+所有管理和设置都在 ChatLuna WebUI 里完成，保存后立即生效。
 
 </div>
 
@@ -44,16 +43,16 @@
 
 ## ✅ 前置条件
 
-- Koishi 4.18 及以上，并启用数据库插件。
-- 需要发图和管理页时启用 `server` 和 `console`（Koishi 默认已启用）。
+- ChatLuna V2，启用数据库服务。下载外部图片时还需启用 HTTP 服务。V2 包名为 `chatluna-plugin-memes`。
+- 需要发图和管理页时启用 `server` 和 ChatLuna WebUI。
 - ChatLuna 注入和 AI 标注需要 [ChatLuna](https://github.com/ChatLunaLab/chatluna)。AI 标注要选支持识图的模型。
 
 ## 🚀 使用
 
-1. 启用插件后，在控制台侧栏打开 **ChatLuna Memes**。
+1. 启用插件后，在 ChatLuna WebUI 侧栏打开 **表情包**。
 2. 在「表情包」中新建表情包，上传图片；需要的话在「外部图源」中添加随机图 API。
 3. 在「配置」中开启 ChatLuna 注入，把 `{chatluna_memes}` 填入 ChatLuna 预设中合适的位置（例如介绍可用能力的部分）。**变量只有填进预设才会生效**。
-4. 机器人对外的地址和 Koishi 的 `selfUrl` 不同时（例如经过反向代理），在「配置」中填写对外地址，否则模型拿到的地址无法访问。
+4. 机器人对外的地址和实例的公开地址 不同时（例如经过反向代理），在「配置」中填写对外地址，否则模型拿到的地址无法访问。
 
 ### 随机图地址
 
@@ -77,9 +76,13 @@
 
 除 `list` 外的命令需要 5 级权限。
 
+## 从 V1 迁移
+
+在 V2 实例中使用原图库时，一起迁移 `data/chatluna-memes/` 和数据库中的 `chatluna_memes_*` 表。标签、别名、外部图源和待审记录保存在数据库里。
+
 ## 🔁 从 memesluna 迁移
 
-本项目是 fork [lumia1998/memesluna](https://github.com/lumia1998/koishi-plugin-memesluna) 后修改并独立发布的插件。首次启动时会自动迁移原插件的数据，只执行一次。不需要迁移的话，在首次启用前把插件配置里的 `migrateMemesluna` 关掉；关闭后首次启动不迁移，之后再开启也不会补做。之前迁移中途失败过的话不能关闭，请保持开启并重启 Koishi 补完迁移。迁移内容：
+本项目是 fork [lumia1998/memesluna](https://github.com/lumia1998/koishi-plugin-memesluna) 后修改并独立发布的插件。首次启动时会自动迁移原插件的数据，只执行一次。不需要迁移的话，在首次启用前把插件配置里的 `migrateMemesluna` 关掉；关闭后首次启动不迁移，之后再开启也不会补做。之前迁移中途失败过的话不能关闭，请保持开启并重启插件以完成迁移。迁移内容：
 
 - **设置**：读取原插件在管理页保存的设置，没有则读取 koishi.yml 中原插件的配置。原来的默认前缀 `/memesluna` 改为 `/chatluna-memes`，自定义的前缀保留。
 - **数据**：复制 `data/memesluna` 中的图片，以及 `memesluna_*` 数据表中的表情包、外部图源和待审区记录。
@@ -90,9 +93,13 @@
 ## 🔒 数据与安全
 
 - 图片保存在 `data/chatluna-memes`，设置保存在其中的 `.settings.json`，记录保存在 `chatluna_memes_*` 数据表中。
-- 启用了 auth 插件时，管理页的所有操作都需要登录有管理权限的控制台账号；没有启用时和控制台本身一样不设登录，管理页会弹窗提醒风险。
+- 管理页使用 ChatLuna WebUI 的管理员会话，随机图地址可公开访问。
 - 下载图片时拒绝直接指向内网 IP 的地址，并按文件内容判断真实格式，不信任扩展名。
 - 管理页里的缩略图由浏览器直接加载。外链显示「无法预览」时，常见原因是防盗链、跨域限制或只有服务器能访问的内网地址，不代表机器人发图会失败。
+
+## 开发与构建
+
+使用 Node.js 24。在已构建的 ChatLuna V2 源码目录下检出本仓库到 `external/memes`，在插件目录执行 `npm ci --workspaces=false --legacy-peer-deps`、`npm run typecheck` 和 `npm run build`。类型检查和宿主集成测试使用 V2 自带的 Cordis、Koishi 命令服务及 ChatLuna 类型。
 
 ## 📄 许可
 

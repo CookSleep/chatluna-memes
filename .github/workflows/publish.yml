@@ -1,42 +1,74 @@
-name: Publish Package
+name: 构建与发布 V2 插件
 
 on:
+  pull_request:
+    branches: [v2]
   push:
-    tags:
-      - 'v*'
+    branches: [v2]
+    tags: ['v2-*']
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
-  publish:
+  pack:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
         with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
-          cache: npm
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - name: 校验包名、版本和发布分支
+        run: |
+          test "$(node -p "require('./package.json').name")" = chatluna-plugin-memes
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            test "$GITHUB_REF_NAME" = "v2-$(node -p "require('./package.json').version")"
+            git merge-base --is-ancestor HEAD origin/v2
+          fi
+      - run: npm ci --legacy-peer-deps
+      - name: 验证独立于宿主的图库逻辑
+        run: npm test -- tests/settings.test.ts tests/search.test.ts tests/client-operations.test.ts
+      - name: 构建插件与管理页
+        run: |
+          npm run build
+          test -s lib/index.js && test -s dist/client.js && test -s dist/client.css
+          mkdir release
+          npm pack --pack-destination release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: release/*.tgz
+          if-no-files-found: error
 
-      - name: Check tag matches version
-        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Test
-        run: npm test
-
-      - name: Build
-        run: npm run build
-
-      - name: Publish to npm (Trusted Publishing via OIDC)
-        run: npm publish --access public
+  publish:
+    if: github.ref_type == 'tag'
+    needs: pack
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+          path: release
+      - name: 发布新版本或核验已发布的压缩包
+        run: |
+          package=chatluna-plugin-memes
+          version=${GITHUB_REF_NAME#v2-}
+          archive="./release/$package-$version.tgz"
+          status=$(curl --silent --show-error --output metadata.json --write-out '%{http_code}' "https://registry.npmjs.org/$package/$version")
+          case "$status" in
+            200)
+              curl --fail --silent --show-error "https://registry.npmjs.org/$package/-/$package-$version.tgz" --output published.tgz
+              cmp "$archive" published.tgz
+              ;;
+            404) npm publish "$archive" --access public --provenance ;;
+            *) echo "npm registry HTTP $status" >&2; exit 1 ;;
+          esac

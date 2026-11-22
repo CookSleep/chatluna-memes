@@ -1,7 +1,9 @@
+import { resolveFromBaseUrl } from '@chatluna/utils'
+import { parse } from 'yaml'
 import { existsSync, readFileSync } from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
-import type { Context } from 'koishi'
+import type { Context } from 'cordis'
 import { DEFAULT_SETTINGS, resolveSettings, type Settings } from './settings'
 
 /** 原 koishi-plugin-memesluna 的数据，迁移后原样保留，确认无误后可以手动删除。 */
@@ -14,7 +16,7 @@ const LEGACY_TABLES = {
 } as const
 const MIGRATION_META_KEY = 'memesluna_migration'
 
-declare module 'koishi' {
+declare module '@cordisjs/plugin-database' {
   interface Tables {
     chatluna_memes_meta: { key: string; value: string }
   }
@@ -41,11 +43,15 @@ function findLegacyPluginConfig(plugins: unknown): Record<string, unknown> | und
  * 首次启动时的设置：优先读原插件管理页保存的设置文件，没有就读 koishi.yml 里原插件的配置。
  * 原来的默认路由前缀 /memesluna 换成新的默认值，自定义的前缀保留。
  */
-export function migrateLegacySettings(baseDir: string, loaderPlugins: unknown): Settings | null {
+export function migrateLegacySettings(baseDir: string, loaderPlugins?: unknown): Settings | null {
   let source: Record<string, unknown> | undefined
   try {
     source = JSON.parse(readFileSync(path.resolve(baseDir, LEGACY_ROOT, LEGACY_SETTINGS_FILE), 'utf8'))
   } catch {
+    const oldConfig = path.join(baseDir, 'koishi.yml')
+    if (loaderPlugins === undefined && existsSync(oldConfig)) {
+      loaderPlugins = parse(readFileSync(oldConfig, 'utf8'))?.plugins
+    }
     source = findLegacyPluginConfig(loaderPlugins)
     if (source) {
       source = { ...source }
@@ -103,7 +109,7 @@ async function writeMigrationState(ctx: Context, result: DataMigrationResult) {
 export async function migrateLegacyData(ctx: Context, root: string, enabled = true): Promise<DataMigrationResult | undefined> {
   if (await readMigrationState(ctx)) return
   const logger = ctx.logger('chatluna-memes')
-  const legacyRoot = path.resolve(ctx.baseDir, LEGACY_ROOT)
+  const legacyRoot = path.resolve(resolveFromBaseUrl(ctx.baseUrl, LEGACY_ROOT))
   if (existsSync(legacyRoot) && !enabled) {
     // 上次迁移中断时已写入部分记录，这时跳过会让同步目录给已复制的图片另建记录，之后无法再补全。
     for (const table of Object.values(LEGACY_TABLES)) {

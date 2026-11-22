@@ -1,4 +1,5 @@
-import { Context, h } from 'koishi'
+import type { Context } from 'cordis'
+import { h, type Session } from '@satorijs/core'
 import type { Settings } from './settings'
 import {
   FREQUENCY_TRACKER_CLEANUP_RATIO,
@@ -28,7 +29,7 @@ export function getMessageImages(elements: h[] = []): string[] {
     .filter(Boolean)
 }
 
-function getSessionGroupId(session: any): string {
+function getSessionGroupId(session: Session): string {
   return session.guildId || session.channelId || ''
 }
 
@@ -186,6 +187,6 @@ export function applyAutoCollect(ctx: Context, config: Settings) {
     }
   })
 
-  ctx.setInterval(() => cleanupAutoCollectFrequency(windowMs, autoCollectFrequencyTracker), Math.max(60 * 1000, windowMs))
+  ctx.interval(() => cleanupAutoCollectFrequency(windowMs, autoCollectFrequencyTracker), Math.max(60 * 1000, windowMs))
   ctx.logger('chatluna-memes').info(`Auto collect started: ${windowMinutes}m/${threshold} times, ${config.minEmojiSize ?? 4}KB-${config.maxEmojiSize || 15}MB, ${dailyLimit}/day/group`)
 }

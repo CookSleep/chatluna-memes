@@ -1,10 +1,6 @@
-import { Context } from 'koishi'
+import type { Context } from 'cordis'
+import type { Model } from '@chatluna/ai-runtime'
 import { MAX_RETRY_DELAY, type Settings } from './settings'
-import { ChatLunaChatModel } from 'koishi-plugin-chatluna/llm-core/platform/model'
-import { HumanMessage, SystemMessage } from '@langchain/core/messages'
-import { getMessageContent } from 'koishi-plugin-chatluna/utils/string'
-import { ComputedRef } from 'koishi-plugin-chatluna'
-import { parseRawModelName } from 'koishi-plugin-chatluna/llm-core/utils/count_tokens'
 import { loadOptionalSharp, loadPhoton } from './service'
 import { AIUsageTracker } from './aiUsageTracker'
 import {
@@ -123,7 +119,7 @@ async function compressImageForAI(buffer: Buffer): Promise<{ buffer: Buffer; mim
 }
 
 export class AIAnnotator {
-    private _model: ComputedRef<ChatLunaChatModel> | null = null
+    private _model: Model<'chat'> | null = null
     private usageTracker: AIUsageTracker
     private cancellation = new AbortController()
     private disposed = false
@@ -138,11 +134,11 @@ export class AIAnnotator {
         private ctx: Context,
         private config: Settings
     ) {
-        ctx.on('dispose', () => this.dispose())
+        ctx.effect(() => () => this.dispose())
         this.usageTracker = new AIUsageTracker(ctx, () => config.aiDailyLimit)
     }
 
-    get model() {
+    get model(): Model<'chat'> | null {
         return this._model
     }
 
@@ -152,16 +148,19 @@ export class AIAnnotator {
 
     /** 返回模型是否加载成功；失败时调用方不应挂载标注器。 */
     async initialize(): Promise<boolean> {
-        await this.usageTracker.initialize()
         if (!this.config.model) return false
 
         try {
-            const [platform] = parseRawModelName(this.config.model)
-            await this.ctx.chatluna.awaitLoadPlatform(platform)
-            this._model = await this.ctx.chatluna.createChatModel(
-                this.config.model
-            )
-            this.ctx.logger.success('AI标注模型加载成功')
+            await this.usageTracker.initialize()
+            const address = this.config.model
+            const slash = address.indexOf('/')
+            // V1 设置使用「平台/模型」，模型 ID 本身也可能含斜杠。
+            const colon = address.indexOf(':')
+            const legacyProvider = slash > 0 && !address.startsWith('@') && (colon < 0 || slash < colon)
+            const model = this.ctx.ai.chat(legacyProvider ? address.slice(0, slash) + ':' + address.slice(slash + 1) : address)
+            await model.bind({ signal: this.cancellation.signal })
+            this._model = model
+            this.ctx.logger.info('AI 标注模型加载成功')
             return true
         } catch (error) {
             this.ctx.logger.error('AI标注模型加载失败:', error)
@@ -188,7 +187,8 @@ export class AIAnnotator {
     }
 
     async annotate(buffer: Buffer, context?: AnnotateContext): Promise<AnnotateResult | null> {
-        if (!this._model?.value) return null
+        const model = this._model
+        if (!model) return null
         if (buffer.length === 0) return null
 
         const signal = this.cancellation.signal
@@ -216,7 +216,6 @@ export class AIAnnotator {
             }
 
             try {
-                const images = [{ data: compressed.buffer.toString('base64'), mimeType: compressed.mimeType }]
                 let reserved = false
                 let day = getDailyKey()
                 const result = await this.scheduler.run(async (requestSignal) => {
@@ -224,30 +223,29 @@ export class AIAnnotator {
                     if (!await this.usageTracker.reserveRequest(attempt > 0, (reservedDay) => { day = reservedDay })) throw new Error('AI daily request limit reached')
                     reserved = true
                     if (requestSignal.aborted) throw new Error('Annotation cancelled')
-                    return this._model!.value.invoke([
-                    new SystemMessage(prompt),
-                    new HumanMessage({
-                        content: [
+                    const bound = await model.bind({ signal: requestSignal })
+                    const stream = bound.call({
+                        system: prompt,
+                        messages: [{ role: 'user', content: [
                             { type: 'text', text: humanText },
-                            ...images.map((image) => ({
-                                type: 'image_url' as const,
-                                image_url: {
-                                    url: `data:${image.mimeType};base64,${image.data}`,
-                                    detail: 'low' as const
-                                }
-                            }))
-                        ]
+                            { type: 'file', mediaType: compressed.mimeType,
+                                data: { type: 'data', data: compressed.buffer.toString('base64') } }
+                        ] }]
                     })
-                ], { signal: requestSignal, timeout: this.config.aiRequestTimeout * 1000 })
-
+                    const chunks: string[] = []
+                    for await (const part of stream) {
+                        if (part.type === 'block-end' && part.block.type === 'text') chunks.push(part.block.text)
+                        if (part.type === 'finish' && (part.reason.kind === 'error' || part.reason.kind === 'aborted')) {
+                            throw new Error(part.reason.failure.message)
+                        }
+                    }
+                    return chunks.join('')
                 }, signal, this.config.aiRequestTimeout * 1000).catch(async (error) => {
                     if (reserved) await this.usageTracker.recordResult(false, day)
                     throw error
                 })
 
-                const parsed = this.parseResult(
-                    getMessageContent(result.content)
-                )
+                const parsed = this.parseResult(result)
                 await this.usageTracker.recordResult(!!parsed, day)
                 if (parsed && !signal.aborted) return parsed
             } catch (error) {

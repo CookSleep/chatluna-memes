@@ -3,6 +3,8 @@
     "rootDir": "src",
     "outDir": "lib",
     "target": "es2022",
+    "jsx": "react-jsx",
+    "paths": { "react": ["./node_modules/@types/react/index.d.ts"], "react/*": ["./node_modules/@types/react/*"] },
     "module": "esnext",
     "declaration": true,
     "composite": true,
