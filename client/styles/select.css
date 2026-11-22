@@ -1,0 +1,61 @@
+.cm-select-control, .cm-select-search {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  color: var(--foreground);
+  background: var(--control, var(--background));
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: .875rem;
+}
+.cm-select-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  min-height: 2rem;
+  padding: .25rem .625rem;
+  cursor: pointer;
+}
+.cm-select-control > span, .cm-select-option > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cm-select-control svg { flex-shrink: 0; color: var(--muted-foreground); }
+.cm-select-control:hover:not(:disabled) { background: var(--accent); }
+.cm-select-control:disabled { opacity: .5; cursor: default; }
+.cm-select-control:focus-visible, .cm-select-search:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.cm-select-positioner { z-index: 65; max-width: var(--available-width); }
+.cm-select-popup {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: max-content;
+  min-width: var(--anchor-width);
+  max-width: min(28rem, var(--available-width));
+  max-height: min(20rem, var(--available-height));
+  padding: .25rem;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 12%);
+  font-size: .875rem;
+}
+.cm-select-list { overflow: auto; min-height: 0; overscroll-behavior: contain; }
+.cm-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .375rem .625rem;
+  border-radius: calc(var(--radius) - 2px);
+  cursor: default;
+}
+.cm-select-option[data-selected] { font-weight: 600; }
+.cm-select-option[data-highlighted] { background: var(--accent); color: var(--accent-foreground); }
+.cm-select-option small { color: var(--muted-foreground); white-space: nowrap; }
+.cm-select-search { flex-shrink: 0; padding: .375rem .625rem; margin-bottom: .25rem; }
+.cm-select-empty:not(:empty) { color: var(--muted-foreground); padding: .625rem; }

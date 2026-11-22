@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
+  esbuild: { jsx: 'automatic' },
   plugins: [vue()],
   define: { 'process.env.NODE_ENV': JSON.stringify('production') },
   build: {
@@ -14,7 +15,7 @@ export default defineConfig({
       fileName: () => 'client.js',
     },
     rollupOptions: {
-      external: ['react', '@chatluna/ui-client/client'],
+      external: ['react', 'react-dom/client', 'react/jsx-runtime', '@base-ui/react', '@chatluna/ui-client/client'],
       output: { assetFileNames: 'client.[ext]', chunkFileNames: 'memes-[hash].js' },
     },
   },

@@ -247,23 +247,8 @@
               <p>需要支持图片输入。标有「识图」的模型声明了这项能力。</p>
             </div>
             <div class="cm-setting-control">
-              <el-select
-                v-model="configDraft.model"
-                class="cm-select is-block"
-                filterable
-                :disabled="!configData.chatlunaAvailable"
-                placeholder="不启用 AI 标注"
-                no-match-text="没有匹配的模型"
-              >
-                <el-option label="不启用 AI 标注" value="" />
-                <el-option v-for="model in modelOptions" :key="model.name" :label="model.name" :value="model.name">
-                  <span class="cm-model-option">
-                    <span class="cm-truncate">{{ model.name }}</span>
-                    <span v-if="model.missing" class="cm-badge is-warning">未加载</span>
-                    <span v-else-if="model.vision" class="cm-badge is-accent">识图</span>
-                  </span>
-                </el-option>
-              </el-select>
+              <NativeSelect v-model="configDraft.model" class="cm-select is-block" label="标注模型"
+                searchable :disabled="!configData.chatlunaAvailable" :options="modelOptions" />
             </div>
           </div>
 
@@ -354,6 +339,7 @@
 </template>
 <script lang="ts">
 import { computed, defineComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import NativeSelect from '../../shared/NativeSelect.vue'
 import Icon from '../../shared/Icon.vue'
 import LoadingSpinner from '../../shared/LoadingSpinner.vue'
 import SwitchToggle from '../../shared/SwitchToggle.vue'
@@ -390,7 +376,7 @@ const annotateTokens = [
 
 export default defineComponent({
   name: 'ConfigView',
-  components: { Icon, LoadingSpinner, SwitchToggle, SettingNumber },
+  components: { NativeSelect, Icon, LoadingSpinner, SwitchToggle, SettingNumber },
   setup() {
     const ctx = useDashboardContext()
     const { configData, configDraft, configChangedKeys, configDirty, configTarget, saveConfig } = ctx
@@ -415,7 +401,12 @@ export default defineComponent({
       const models = (configData.value?.models || []).map((model) => ({ ...model, missing: false }))
       const current = configDraft.value?.model
       if (current && !models.some((model) => model.name === current)) models.unshift({ name: current, vision: false, missing: true })
-      return models
+      return [
+        { value: '', label: '不启用 AI 标注' },
+        ...models.map(({ name, missing, vision }) => ({
+          value: name, label: name, badge: missing ? '未加载' : vision ? '识图' : undefined,
+        })),
+      ]
     })
 
     const annotatorState = computed(() => {
@@ -434,7 +425,7 @@ export default defineComponent({
       activeSection.value = id
       const el = document.getElementById(id)
       // 第一个分区直接回到页面顶部，连同标题一起露出来。
-      if (id === sections[0].id) el?.closest('.el-scrollbar__wrap')?.scrollTo({ top: 0, behavior: 'smooth' })
+      if (id === sections[0].id) el?.closest('.cm-scroll')?.scrollTo({ top: 0, behavior: 'smooth' })
       else el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
 

@@ -31,24 +31,22 @@
           </div>
 
           <div v-else-if="dialog.options.choices" class="cm-dialog-choices">
-            <el-scrollbar max-height="280px">
-              <button
-                v-for="choice in dialog.options.choices"
-                :key="choice.value"
-                type="button"
-                class="cm-choice"
-                :class="{ 'is-active': dialog.value === choice.value }"
-                :disabled="choice.disabled"
-                @click="dialog.value = choice.value; dialog.error = ''"
-                @dblclick="!choice.disabled && submitDialog()"
-              >
-                <span class="cm-choice-radio"></span>
-                <span class="cm-choice-text">
-                  <span class="cm-choice-label">{{ choice.label }}</span>
-                  <span v-if="choice.description" class="cm-choice-desc">{{ choice.description }}</span>
-                </span>
-              </button>
-            </el-scrollbar>
+            <button
+              v-for="choice in dialog.options.choices"
+              :key="choice.value"
+              type="button"
+              class="cm-choice"
+              :class="{ 'is-active': dialog.value === choice.value }"
+              :disabled="choice.disabled"
+              @click="dialog.value = choice.value; dialog.error = ''"
+              @dblclick="!choice.disabled && submitDialog()"
+            >
+              <span class="cm-choice-radio"></span>
+              <span class="cm-choice-text">
+                <span class="cm-choice-label">{{ choice.label }}</span>
+                <span v-if="choice.description" class="cm-choice-desc">{{ choice.description }}</span>
+              </span>
+            </button>
           </div>
 
           <p v-if="dialog.error" class="cm-dialog-error">{{ dialog.error }}</p>

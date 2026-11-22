@@ -1,10 +1,9 @@
 <template>
   <nav class="cm-crumbs" aria-label="当前位置">
-    <span class="cm-crumb" :class="{ 'is-link': currentCollection }" @click="currentCollection && exitCollectionDetail()">ChatLuna Memes</span>
-    <template v-if="currentCollection">
-      <span class="cm-crumb-sep">/</span>
-      <span class="cm-crumb is-link" @click="exitCollectionDetail()">表情包</span>
-      <span class="cm-crumb-sep">/</span>
+    <h1 v-if="!currentCollection" class="cm-crumb">表情包管理</h1>
+    <template v-else>
+      <button class="cm-crumb is-link" type="button" @click="exitCollectionDetail()">表情包管理</button>
+      <span class="cm-crumb-sep" aria-hidden="true">/</span>
       <span class="cm-crumb is-current">{{ currentCollection.name }}</span>
     </template>
   </nav>

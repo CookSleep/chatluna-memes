@@ -21,6 +21,7 @@
   },
   "include": [
     "**/*.ts",
+    "**/*.tsx",
     "../src/console-rpc.ts",
     "../src/constants.ts"
   ]

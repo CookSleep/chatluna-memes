@@ -17,14 +17,10 @@
         <input v-model="gallerySearch" placeholder="搜索文件名、标签或别名" />
       </label>
       <div class="cm-toolbar-end">
-        <el-select v-model="galleryFilter" class="cm-select is-narrow" aria-label="筛选">
-          <el-option value="all" label="全部图片" />
-          <el-option value="selected" label="只看已选" />
-        </el-select>
-        <el-select v-model="gallerySort" class="cm-select is-narrow" aria-label="排序">
-          <el-option value="name" label="文件名 A→Z" />
-          <el-option value="nameDesc" label="文件名 Z→A" />
-        </el-select>
+        <NativeSelect v-model="galleryFilter" class="cm-select is-narrow" label="筛选"
+          :options="[{ value: 'all', label: '全部图片' }, { value: 'selected', label: '只看已选' }]" />
+        <NativeSelect v-model="gallerySort" class="cm-select is-narrow" label="排序"
+          :options="[{ value: 'name', label: '文件名 A→Z' }, { value: 'nameDesc', label: '文件名 Z→A' }]" />
         <div class="cm-segmented is-icon">
           <button type="button" :class="{ 'is-active': galleryViewMode === 'grid' }" title="网格" @click="galleryViewMode = 'grid'"><Icon name="grid" /></button>
           <button type="button" :class="{ 'is-active': galleryViewMode === 'list' }" title="列表" @click="galleryViewMode = 'list'"><Icon name="list" /></button>
@@ -116,6 +112,7 @@
 </template>
 <script lang="ts">
 import { defineComponent, reactive } from 'vue'
+import NativeSelect from '../../shared/NativeSelect.vue'
 import Icon from '../../shared/Icon.vue'
 import SelectionBar from '../../shared/SelectionBar.vue'
 import TagRow from '../../shared/TagRow.vue'
@@ -124,7 +121,7 @@ import { useSelectionShortcuts } from '../../../utils/selection'
 
 export default defineComponent({
   name: 'ImageGallery',
-  components: { Icon, SelectionBar, TagRow },
+  components: { NativeSelect, Icon, SelectionBar, TagRow },
   setup() {
     const ctx = useDashboardContext()
     const brokenImages = reactive(new Set<string>())

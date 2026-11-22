@@ -62,10 +62,10 @@
             <Icon name="alert" />
             <span>当前没有开启 ChatLuna 变量注入，下面只是预览，模型实际看不到这段内容。<br />如需启用，请在<button type="button" class="cm-inline-link" @click="openConfig('cm-config-chatluna')">「配置」</button>中开启 ChatLuna 注入。</span>
           </div>
-          <el-scrollbar max-height="420px" class="cm-code">
+          <div class="cm-code">
             <pre v-if="llmPromptPreview">{{ llmPromptPreview }}</pre>
             <pre v-else class="is-placeholder">正在生成…</pre>
-          </el-scrollbar>
+          </div>
         </div>
       </div>
 

@@ -5,7 +5,7 @@
     </header>
 
     <div class="cm-progress" :class="{ 'is-active': loading && initialized }"></div>
-    <el-scrollbar class="cm-scroll">
+    <div class="cm-scroll">
       <div class="cm-container">
         <LoadingSpinner v-if="!initialized" />
         <template v-else>
@@ -17,7 +17,7 @@
           <PreviewView v-else-if="activeMenu === 'preview'" />
         </template>
       </div>
-    </el-scrollbar>
+    </div>
     <Toast />
     <AppDialog />
   </section>
