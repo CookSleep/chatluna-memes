@@ -13,7 +13,7 @@ export default function apply(ctx: Context) {
     remove = ctx.slots.route({
       path: data,
       title: '表情包',
-      icon: 'smile',
+      icon: 'sticker',
       group: 'capabilities',
       groupOrder: 35,
       order: 50,
