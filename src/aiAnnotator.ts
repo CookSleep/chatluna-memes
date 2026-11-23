@@ -5,7 +5,8 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import { getMessageContent } from 'koishi-plugin-chatluna/utils/string'
 import { ComputedRef } from 'koishi-plugin-chatluna'
 import { parseRawModelName } from 'koishi-plugin-chatluna/llm-core/utils/count_tokens'
-import { loadOptionalSharp, loadPhoton } from './service'
+import { loadOptionalSharp } from './service'
+import { loadPhoton } from './photon'
 import { AIUsageTracker } from './aiUsageTracker'
 import {
   MAX_ALIASES_COUNT,

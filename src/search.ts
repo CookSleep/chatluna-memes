@@ -9,6 +9,7 @@ import {
 } from './constants'
 import { parseJsonStringArray } from './utils'
 import { getLocalBaseUrl } from './urls'
+import { stickerImage } from './sticker'
 
 export function normalizeText(input: string): string {
   return input
@@ -278,7 +279,8 @@ export async function findByQuery(
   query: string,
   requestOrigin?: string,
   collectionName?: string,
-): Promise<{ redirectTo: string } | null> {
+  full = false,
+): Promise<{ redirectTo: string } | { image: { buffer: Buffer; mime: string } } | null> {
   const rawQuery = query.trim()
   if (!rawQuery) return null
 
@@ -312,6 +314,11 @@ export async function findByQuery(
   if (resource.type === 'external') return { redirectTo: resource.value }
 
   const collection = pick.image.collection || collectionName || ''
+  const image = await service.getLocalImageBuffer(collection, resource.filename || '')
+  if (image) {
+    return { image: full ? image : stickerImage(image) }
+  }
+
   const localUrl = `${getLocalBaseUrl(ctx, config, requestOrigin)}${config.backendPath}/api/collections/${encodeURIComponent(collection)}/images/${encodeURIComponent(resource.filename || '')}`
   return { redirectTo: localUrl }
 }

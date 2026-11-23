@@ -3,6 +3,7 @@ import fs from 'fs/promises'
 import path from 'path'
 import { Context, Service, Eval } from 'koishi'
 import type { Settings } from './settings'
+import { loadPhoton } from './photon'
 import type { AIAnnotator } from './aiAnnotator'
 import {
   BACKFILL_CONCURRENCY,
@@ -57,7 +58,6 @@ export function hashImageBuffer(buffer: Buffer): string {
 }
 
 let cachedSharp: any = undefined
-let cachedPhoton: any = undefined
 
 export function loadOptionalSharp(): any | null {
   if (cachedSharp !== undefined) return cachedSharp
@@ -69,17 +69,6 @@ export function loadOptionalSharp(): any | null {
     cachedSharp = null
   }
   return cachedSharp
-}
-
-export function loadPhoton(): any | null {
-  if (cachedPhoton !== undefined) return cachedPhoton
-  try {
-    const packageName = '@cf-wasm/photon/node'
-    cachedPhoton = require(packageName)
-  } catch {
-    cachedPhoton = null
-  }
-  return cachedPhoton
 }
 
 function lumaFromRgba(data: Buffer | Uint8Array, offset: number): number {

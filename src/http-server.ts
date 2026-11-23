@@ -10,6 +10,7 @@ import {
 } from './service'
 import { toTrimmedString } from './utils'
 import { getLocalBaseUrl, toAbsoluteBaseUrl } from './urls'
+import { stickerImage } from './sticker'
 import formidable from 'formidable'
 import { adminHttpGuard } from './admin-auth'
 import { MAX_IMAGE_BYTES, MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_BYTES } from './constants'
@@ -42,8 +43,9 @@ async function applyDynamicForward(
   }
 
   const query = typeof _query?.q === 'string' ? _query.q.trim() : ''
+  const full = _query?.size === 'full'
   if (query && isCollection) {
-    const queryResult = await findByQuery(ctx, config, service, query, requestOrigin, routeName)
+    const queryResult = await findByQuery(ctx, config, service, query, requestOrigin, routeName, full)
     if (queryResult) return queryResult
   }
 
@@ -56,11 +58,21 @@ async function applyDynamicForward(
     return { redirectTo: resource.value }
   }
 
+  const image = await service.getLocalImageBuffer(routeName, resource.filename || '')
+  if (image) {
+    return { image: full ? image : stickerImage(image) }
+  }
+
   const localUrl = `${getLocalBaseUrl(ctx, config, requestOrigin)}${config.backendPath}/api/collections/${encodeURIComponent(routeName)}/images/${encodeURIComponent(resource.filename || '')}`
   return { redirectTo: localUrl }
 }
 
 function setKoaResponse(koa: any, result: any) {
+  if (result.image) {
+    sendImage(koa, result.image)
+    return
+  }
+
   if (result.redirectTo) {
     koa.redirect(result.redirectTo)
     return
@@ -203,7 +215,8 @@ export function applyServer(ctx: Context, config: Settings, service: ChatLunaMem
   server.get(basePath, async (koa, next) => {
     const query = typeof koa.request.query?.q === 'string' ? koa.request.query.q.trim() : ''
     if (query) {
-      const result = await findByQuery(ctx, config, service, query, koa.request.origin)
+      const full = koa.request.query?.size === 'full'
+      const result = await findByQuery(ctx, config, service, query, koa.request.origin, undefined, full)
       setKoaResponse(koa, result || { notFound: true })
       return
     }
@@ -253,6 +266,7 @@ export function applyServer(ctx: Context, config: Settings, service: ChatLunaMem
       return
     }
 
-    sendImage(koa, image)
+    const full = koa.request.query?.size === 'full'
+    sendImage(koa, full ? image : stickerImage(image))
   })
 }

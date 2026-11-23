@@ -28,8 +28,10 @@ export const DEFAULT_INJECT_PROMPT = `你可以发送表情包来表达情绪或
 
 使用方式：
 - 根据语境挑最合适的一项，把地址原样作为图片发出；不要改写地址，也不要编造列表里没有的地址
+- 地址默认返回缩放版：按比例缩到长边 160px、宽高都不超过 160px（GIF 为保留动效不缩放）；集合地址和单张图片地址都一样
+- 要原图时在地址后加 ?size=full；地址已有 ?q= 时用 &size=full，例如 ?q=开心&size=full
 - 想要更具体的画面时，在地址后加 ?q=关键词，例如 ?q=开心；找不到匹配时会随机返回一张
-- 拿不准选哪一项时，用 {base_url}{backend_path}?q=关键词 在全部表情包里搜索
+- 拿不准选哪一项时，用 {base_url}{backend_path}?q=关键词 在全部表情包里搜索，同样可加 &size=full
 - 不必每次都发，合适的时候再发`
 
 export interface Settings {
