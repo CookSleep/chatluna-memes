@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { loadPhoton, type PhotonImage } from './photon'
 
 const STICKER_MAX_SIZE = 160
@@ -9,11 +10,14 @@ const cache = new Map<string, { buffer: Buffer; mime: string }>()
  * 长边缩到 160px 的等比缩略图。
  * GIF 不缩放以保留动效；原图本来就不超过上限、photon 不可用或解码失败时原样返回。
  */
-export function stickerImage(
-  image: { buffer: Buffer; mime: string },
-  key: string,
-): { buffer: Buffer; mime: string } {
+export function stickerImage(image: { buffer: Buffer; mime: string }): { buffer: Buffer; mime: string } {
   if (image.mime === 'image/gif') return image
+
+  // 先按内容查缓存，命中时无需解码原图；换图或重新上传会得到新的内容哈希。
+  const cacheKey = `${image.mime}:${createHash('sha1').update(image.buffer).digest('base64')}`
+  const hit = cache.get(cacheKey)
+  if (hit) return hit
+
   const photon = loadPhoton()
   if (!photon) return image
 
@@ -25,10 +29,6 @@ export function stickerImage(
     const height = source.get_height()
     const scale = Math.min(1, STICKER_MAX_SIZE / Math.max(width, height))
     if (scale >= 1) return image
-
-    const cacheKey = `${key}:${width}x${height}:${image.buffer.byteLength}`
-    const hit = cache.get(cacheKey)
-    if (hit) return hit
 
     resized = photon.resize(
       source,

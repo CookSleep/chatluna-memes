@@ -60,7 +60,7 @@ async function applyDynamicForward(
 
   const image = await service.getLocalImageBuffer(routeName, resource.filename || '')
   if (image) {
-    return { image: full ? image : stickerImage(image, `${routeName}/${resource.filename}`) }
+    return { image: full ? image : stickerImage(image) }
   }
 
   const localUrl = `${getLocalBaseUrl(ctx, config, requestOrigin)}${config.backendPath}/api/collections/${encodeURIComponent(routeName)}/images/${encodeURIComponent(resource.filename || '')}`
@@ -267,6 +267,6 @@ export function applyServer(ctx: Context, config: Settings, service: ChatLunaMem
     }
 
     const full = koa.request.query?.size === 'full'
-    sendImage(koa, full ? image : stickerImage(image, `${collectionName}/${filename}`))
+    sendImage(koa, full ? image : stickerImage(image))
   })
 }

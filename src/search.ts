@@ -316,7 +316,7 @@ export async function findByQuery(
   const collection = pick.image.collection || collectionName || ''
   const image = await service.getLocalImageBuffer(collection, resource.filename || '')
   if (image) {
-    return { image: full ? image : stickerImage(image, `${collection}/${resource.filename}`) }
+    return { image: full ? image : stickerImage(image) }
   }
 
   const localUrl = `${getLocalBaseUrl(ctx, config, requestOrigin)}${config.backendPath}/api/collections/${encodeURIComponent(collection)}/images/${encodeURIComponent(resource.filename || '')}`
